@@ -8,3 +8,17 @@ export interface ImUser {
   lastName: string;
   password: string;
 }
+
+export interface DecodedToken {
+  userId: string;
+  email: string;
+  iat: number;
+  exp: number;
+}
+
+export interface UserDecodedToken {
+  id: string;
+  email: string;
+  iat: number;
+  exp: number;
+}

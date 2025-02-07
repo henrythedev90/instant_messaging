@@ -9,6 +9,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const db = client.db("Cluster0");
   const userId = (req as any).user.userId;
 
+  console.log(userId, "this is the userId");
   if (req.method !== "GET") {
     try {
       const me = await db.collection("imUsers").findOne<ImUser>({

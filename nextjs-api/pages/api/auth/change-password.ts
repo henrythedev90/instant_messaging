@@ -3,6 +3,12 @@ import bcrypt from "bcryptjs";
 import clientPromise from "../../../backend/config/mongodb";
 import { authenticate } from "../../../backend/middleware/authenticate";
 import { ObjectId } from "mongodb";
+import { DecodedToken } from "../../../backend/types/types";
+
+interface AuthenticatedRequest extends NextApiRequest {
+  user: DecodedToken;
+}
+
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method Not Allowed" });
@@ -22,7 +28,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Get the authenticated user (assuming `authenticate` middleware adds user info to req)
 
-    const userId = (req as any).user.id;
+    const userId = (req as AuthenticatedRequest).user.userId;
 
     // Find the user by ID
     const user = await db

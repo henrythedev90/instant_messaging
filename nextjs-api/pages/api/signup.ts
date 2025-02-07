@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
+import clientPromise from "../../backend/config/mongodb";
 import bcrypt from "bcryptjs";
-import { ImUser } from "../../../backend/types/types";
+import { ImUser } from "../../backend/types/types";
 import { ObjectId } from "mongodb";
 export default async function handler(
   req: NextApiRequest,

@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
-import { ImUser } from "../../../backend/types/types";
+import clientPromise from "../../backend/config/mongodb";
+import { ImUser } from "../../backend/types/types";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
