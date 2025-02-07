@@ -15,10 +15,3 @@ export interface DecodedToken {
   iat: number;
   exp: number;
 }
-
-export interface UserDecodedToken {
-  id: string;
-  email: string;
-  iat: number;
-  exp: number;
-}

@@ -10,7 +10,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userId = (req as any).user.userId;
 
   console.log(userId, "this is the userId");
-  if (req.method !== "GET") {
+  if (req.method === "GET") {
     try {
       const me = await db.collection("imUsers").findOne<ImUser>({
         _id: new ObjectId(userId as string),

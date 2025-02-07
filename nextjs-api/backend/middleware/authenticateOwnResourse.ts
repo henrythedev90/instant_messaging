@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import jwt from "jsonwebtoken";
-import { UserDecodedToken } from "../types/types";
+import { DecodedToken } from "../types/types";
 // Define the structure of the decoded token
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -23,12 +23,12 @@ export function authorizeOwnResource(
         throw new Error("JWT_SECRET is not defined in environment variables");
       }
 
-      const decoded = jwt.verify(token, JWT_SECRET) as UserDecodedToken;
+      const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
       console.log(decoded, "this is the decoded token");
 
       // Extract the `id` from the URL and `userId` from the token
       const { id } = req.query;
-      if (decoded.id !== id) {
+      if (decoded.userId !== id) {
         return res.status(403).json({ message: "Forbidden: Access denied" });
       }
 
