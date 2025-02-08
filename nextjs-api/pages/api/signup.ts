@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../backend/config/mongodb";
 import bcrypt from "bcryptjs";
 import { ImUser } from "../../backend/types/types";
+import jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 export default async function handler(
   req: NextApiRequest,
@@ -49,6 +50,12 @@ export default async function handler(
         password: hashedPassword,
       };
 
+      const token = jwt.sign(
+        { userId: newUser._id.toString() },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "1h" }
+      );
+
       await db.collection("imUsers").insertOne(newUser);
 
       res.status(201).json({
@@ -60,6 +67,7 @@ export default async function handler(
           firstName: newUser.firstName,
           lastName: newUser.lastName,
         },
+        token: token,
       });
     } catch (error) {
       console.error("Error creating user:", error);

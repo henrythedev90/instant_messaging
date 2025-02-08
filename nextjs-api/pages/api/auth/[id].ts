@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { authorizeOwnResource } from "../../../backend/middleware/authenticateOwnResourse";
+import { authorizeOwnResource } from "../../../backend/middleware/authenticateOwnResource";
 // GET	/api/auth/:id	Retrieve a single user
 // PUT/PATCH	/api/auth/:id	Update user details
 // DELETE	/api/auth/:id	Delete a user
