@@ -19,17 +19,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { nickname } = req.body;
     const userId = (req as any).user.userId;
+    const username = (req as any).user.username;
 
     if (!nickname) {
       return res.status(400).json({ message: "Missing required fields" });
     }
-    if (nickname === userId) {
+    if (nickname === username) {
       return res
         .status(400)
         .json({ message: "Cannot add yourself as a contact" });
     }
 
-    // Find the target user's ID from imUsers collection
     const contactUser = await db
       .collection("imUsers")
       .findOne({ username: nickname }, { projection: { _id: 1 } });
@@ -38,8 +38,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ message: "User not found" });
     }
 
-    const userPhonebook = await db.collection("phonebook").findOne({
+    const userPhonebook = await db.collection("phonebook").findOne<Phonebook>({
       userId: new ObjectId(userId as string),
+      username: username,
     });
 
     const newContactEntry: Contact = {
@@ -49,7 +50,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     };
 
     if (userPhonebook) {
-      // Check if contact already exists in the contacts array
       const contactExists = userPhonebook.contacts?.some(
         (contact: Contact) =>
           contact.contactId.toString() === contactUser._id.toString()
@@ -61,19 +61,24 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           .json({ message: "Contact already exists in phonebook" });
       }
 
-      // Add new contact to existing phonebook
-      await db
-        .collection("phonebook")
-        .updateOne({ userId: new ObjectId(userId as string) }, {
-          $push: { contacts: newContactEntry },
-        } as any);
+      await db.collection("phonebook").updateOne(
+        { userId: new ObjectId(userId as string) },
+        {
+          $push: { contacts: newContactEntry } as any,
+          $inc: { contactCount: 1 },
+        }
+      );
     } else {
-      // Create new phonebook entry for user
       await db.collection("phonebook").insertOne({
         userId: new ObjectId(userId as string),
+        username: username,
         contacts: [newContactEntry],
+        contactCount: 1,
+        createdAt: new Date(),
       });
     }
+
+    // ... existing code ...
 
     res.status(201).json({
       message: "Contact added successfully",

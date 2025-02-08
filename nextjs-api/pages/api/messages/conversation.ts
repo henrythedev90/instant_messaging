@@ -21,13 +21,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const senderId = (req as any).user.userId;
     const conversation = await db
       .collection("messages")
-      .find({
+      .find<Message>({
         $or: [
-          { senderId, receiverId },
-          { senderId: receiverId, receiverId: senderId },
+          {
+            sender: new ObjectId(senderId as string),
+            receiver: new ObjectId(receiverId as string),
+          },
+          {
+            sender: new ObjectId(receiverId as string),
+            receiver: new ObjectId(senderId as string),
+          },
         ],
       })
-      .sort({ timestamp: 1 })
+      .sort({ timestamp: -1 })
       .toArray();
 
     res.status(200).json({ conversation });
@@ -38,3 +44,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 }
 
 export default authenticate(handler);
+
+// Fetch conversation with user ID "123"
+// const response = await fetch('/api/messages/conversation?receiverId=123');
+// const data = await response.json();
+// data.conversation will contain all messages between current user and user 123

@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { Message } from "../../../backend/types/types";
+import { Message, Contact } from "../../../backend/types/types";
 import { authenticate } from "../../../backend/middleware/authenticate";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,13 +13,54 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { receiverId, content } = req.body;
+    const { receiverNickname, content } = req.body;
     const senderId = (req as any).user.userId;
+    const senderUsername = (req as any).user.username;
+
+    if (!content || content.trim() === "") {
+      return res
+        .status(400)
+        .json({ message: "Message content cannot be empty" });
+    }
+
+    if (receiverNickname === senderUsername) {
+      return res
+        .status(400)
+        .json({ message: "Cannot send message to yourself" });
+    }
+
+    const senderContacts = await db
+      .collection("phonebook")
+      .findOne({ userId: new ObjectId(senderId as string) });
+
+    if (
+      !senderContacts ||
+      !senderContacts.contacts.some(
+        (contact: Contact) => contact.nickname === receiverNickname
+      )
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Cannot send message to users not in your contacts" });
+    }
+
+    const receiver = await db
+      .collection("phonebook")
+      .findOne(
+        { "contacts.nickname": receiverNickname },
+        { projection: { "contacts.$": 1 } }
+      );
+
+    console.log(receiver, "this is the receiver from DB");
+
+    if (!receiver) {
+      return res.status(404).json({ message: "Receiver not found" });
+    }
+
     const message: Message = {
-      _id: new ObjectId(),
-      senderId,
-      receiverId: new ObjectId(receiverId as string),
-      content,
+      sender: new ObjectId(senderId as string),
+      receiver: receiver.contacts[0].contactId, // Updated this line to access contactId from the contacts array
+      content: content,
       timestamp: new Date(),
     };
 
@@ -30,4 +71,5 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.status(500).json({ message: "Internal server error" });
   }
 }
+
 export default authenticate(handler);

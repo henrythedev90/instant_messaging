@@ -18,6 +18,7 @@ export interface DecodedToken {
 
 export interface Phonebook {
   userId: ObjectId;
+  username: string;
   contacts: Contact[];
 }
 
@@ -28,9 +29,8 @@ export interface Contact {
 }
 
 export interface Message {
-  _id: ObjectId;
-  senderId: ObjectId;
-  receiverId: ObjectId;
+  sender: ObjectId;
+  receiver: ObjectId;
   content: string;
   timestamp: Date;
 }

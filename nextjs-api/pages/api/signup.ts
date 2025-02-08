@@ -51,7 +51,11 @@ export default async function handler(
       };
 
       const token = jwt.sign(
-        { userId: newUser._id.toString() },
+        {
+          userId: newUser._id.toString(),
+          email: newUser.email,
+          username: newUser.username,
+        },
         process.env.JWT_SECRET as string,
         { expiresIn: "1h" }
       );

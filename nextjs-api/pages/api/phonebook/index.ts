@@ -18,13 +18,19 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const userId = (req as any).user.userId;
+    const username = (req as any).user.username;
 
+    const query = {
+      userId: new ObjectId(userId as string),
+      username: username,
+    };
     const phonebook = await db
       .collection("phonebook")
-      .find<Phonebook>({ userId: new ObjectId(userId as string) })
-      .toArray();
+      .findOne<Phonebook>(query);
 
-    res.status(200).json(phonebook);
+    res.status(200).json({
+      contacts: phonebook?.contacts,
+    });
   } catch (error) {
     console.error("Error fetching phonebook:", error);
     res.status(500).json({ message: "Internal server error" });
