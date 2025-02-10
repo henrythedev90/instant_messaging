@@ -34,3 +34,24 @@ export interface Message {
   content: string;
   timestamp: Date;
 }
+
+export interface GroupChat {
+  groupName: string;
+  members: GroupMember[];
+  createdAt: Date;
+  messages: GroupChatMessage[];
+  admin: {
+    _id: ObjectId;
+    username: string;
+  };
+}
+export interface GroupMember {
+  username: string;
+  joinedAt: Date;
+}
+
+export interface GroupChatMessage {
+  senderId: ObjectId;
+  message: string;
+  timestamp: Date;
+}
