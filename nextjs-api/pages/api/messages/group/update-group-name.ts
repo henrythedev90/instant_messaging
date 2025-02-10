@@ -1,21 +1,21 @@
-import { authenticate } from "../../../backend/middleware/authenticate";
+import { authenticate } from "../../../../backend/middleware/authenticate";
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
+import clientPromise from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
   const db = client.db("Cluster0");
 
-  if (req.method !== "DELETE") {
+  if (req.method !== "PUT") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
   try {
-    const { groupId } = req.query;
+    const { groupId, newGroupName } = req.body;
     const currentUser = (req as any).user.username;
 
-    if (!groupId) {
+    if (!groupId || !newGroupName) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -33,21 +33,21 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         .json({ message: "You are not the admin of this group" });
     }
 
-    const result = await db
+    // Then update the group name
+    await db
       .collection("groupChats")
-      .deleteOne({ _id: new ObjectId(groupId as string) });
+      .updateOne(
+        { _id: new ObjectId(groupId as string) },
+        { $set: { groupName: newGroupName } }
+      );
 
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ message: "Group chat not found" });
-    }
-
-    return res.status(200).json({ message: "Group deleted successfully" });
+    return res.status(200).json({ message: "Group name updated successfully" });
   } catch (error) {
-    console.error("Error deleting group:", error);
+    console.error("Error updating group name:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 }
 
 export default authenticate(handler);
 
-// http://localhost:3000/api/group/delete-group?groupId=67aa2cf35a5b1e4d809779b6
+// http://localhost:3000/api/group/update-group-name?groupId=67aa2cf35a5b1e4d809779b6&newGroupName=NewGroupName

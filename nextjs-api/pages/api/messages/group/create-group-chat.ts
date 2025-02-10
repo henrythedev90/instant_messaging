@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
+import clientPromise from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { authenticate } from "../../../backend/middleware/authenticate";
-import { GroupChat, GroupMember } from "../../../backend/types/types";
+import { authenticate } from "../../../../backend/middleware/authenticate";
+import { GroupChat } from "../../../../backend/types/types";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
@@ -30,6 +30,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const groupChat: GroupChat = {
       groupName: groupName,
       members: memberUserNames.map((username: string) => ({
+        userId: new ObjectId(
+          userData.find((user) => user.username === username)
+            ?._id as unknown as string
+        ),
         username: username,
         joinedAt: new Date(),
       })),

@@ -46,12 +46,14 @@ export interface GroupChat {
   };
 }
 export interface GroupMember {
+  userId: ObjectId;
   username: string;
   joinedAt: Date;
 }
 
 export interface GroupChatMessage {
   senderId: ObjectId;
+  senderUsername: string;
   message: string;
   timestamp: Date;
 }

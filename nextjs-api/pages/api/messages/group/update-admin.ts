@@ -1,8 +1,8 @@
-import { authenticate } from "../../../backend/middleware/authenticate";
+import { authenticate } from "../../../../backend/middleware/authenticate";
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
+import clientPromise from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { GroupMember } from "../../../backend/types/types";
+import { GroupMember } from "../../../../backend/types/types";
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
   const db = client.db("Cluster0");

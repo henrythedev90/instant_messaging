@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { authenticate } from "../../../backend/middleware/authenticate";
-import { GroupChatMessage, GroupMember } from "../../../backend/types/types";
-import clientPromise from "../../../backend/config/mongodb";
+import { authenticate } from "../../../../backend/middleware/authenticate";
+import { GroupChatMessage, GroupMember } from "../../../../backend/types/types";
+import clientPromise from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -15,6 +15,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const { groupId, message } = req.body;
+    const senderUsername = (req as any).user.username;
 
     console.log(groupId, message);
 
@@ -41,6 +42,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const newMessage: GroupChatMessage = {
+      senderUsername: senderUsername,
       senderId: new ObjectId(userId as string),
       message: message,
       timestamp: new Date(),
