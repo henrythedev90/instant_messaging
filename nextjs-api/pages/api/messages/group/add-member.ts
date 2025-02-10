@@ -61,7 +61,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           members: {
             userId: new ObjectId(memberId as string),
             username: user.username,
-            joinedAt: new Date(),
+            joinedAt: new Date().toLocaleString(),
           },
         },
       }

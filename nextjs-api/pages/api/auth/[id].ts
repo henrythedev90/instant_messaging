@@ -32,7 +32,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
   } else if (req.method === "PUT") {
     const { firstName, lastName, email } = req.body;
-    const updateFields: any = { updatedAt: new Date() };
+    const updateFields: any = { updatedAt: new Date().toLocaleString() };
     if (firstName) updateFields.firstName = firstName;
     if (lastName) updateFields.lastName = lastName;
     if (email) updateFields.email = email;

@@ -21,7 +21,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         .collection("messages")
         .updateOne(
           { _id: new ObjectId(messageId as string) },
-          { $set: { content, timestamp: new Date() } }
+          { $set: { content, timestamp: new Date().toLocaleString() } }
         );
 
       if (result.modifiedCount === 0) {
