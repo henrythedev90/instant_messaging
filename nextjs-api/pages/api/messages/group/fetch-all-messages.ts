@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { authenticate } from "../../../../backend/middleware/authenticate";
 import clientPromise from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { GroupMember } from "../../../../backend/types/types";
+import { GroupChatMessage, GroupChat } from "../../../../backend/types/types";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
@@ -14,28 +14,26 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const groupChat = await db.collection("groupChats").findOne({
-      members: { $elemMatch: { userId: new ObjectId(userId as string) } },
-    });
+    const groupChats = await db
+      .collection("groupChats")
+      .find<GroupChat>({
+        members: { $elemMatch: { userId: new ObjectId(userId as string) } },
+      })
+      .toArray();
 
-    if (!groupChat) {
-      return res.status(404).json({ message: "Group chat not found" });
+    if (!groupChats.length) {
+      return res.status(404).json({ message: "No group chats found" });
     }
 
-    const isMember = groupChat.members.some(
-      (member: GroupMember) => member.username === currentUser
-    );
-
-    if (!isMember) {
-      return res
-        .status(403)
-        .json({ message: "You are not a member of this group" });
-    }
+    // Transform the data to include messages from all groups
+    const allGroupMessages = groupChats.map((chat: GroupChat) => ({
+      _id: chat._id.toString(),
+      groupName: chat.groupName,
+      messages: chat.messages,
+    }));
 
     return res.status(200).json({
-      groupId: groupChat._id,
-      groupName: groupChat.groupName,
-      messages: groupChat.messages,
+      groups: allGroupMessages,
     });
   } catch (error) {
     console.error("Error fetching all messages:", error);

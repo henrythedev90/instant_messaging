@@ -7,7 +7,8 @@ import { GroupChat, GroupMember } from "../../../../backend/types/types";
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
   const db = client.db("Cluster0");
-  if (req.method !== "DELETE") {
+
+  if (req.method !== "PUT") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
@@ -15,7 +16,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const { groupId, memberId } = req.body;
     const userId = (req as any).user.userId;
 
-    // Validate ObjectId format
     if (!ObjectId.isValid(groupId) || !ObjectId.isValid(memberId)) {
       return res
         .status(400)
@@ -30,36 +30,46 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ message: "Group not found" });
     }
 
-    if (groupChat.admin._id.toString() !== userId && userId !== memberId) {
+    if (groupChat.admin._id.toString() !== userId) {
       return res
         .status(403)
-        .json({ message: "You must be the admin to delete users" });
+        .json({ message: "You must be the admin to add members" });
     }
 
-    // Check if member exists in group
-    const memberExists = groupChat.members.some(
+    const isMember = groupChat.members.some(
       (member) => member.userId.toString() === memberId
     );
-    if (!memberExists) {
-      return res.status(404).json({ message: "Member not found in group" });
+
+    if (isMember) {
+      return res
+        .status(400)
+        .json({ message: "User is already a member of the group" });
     }
 
-    const result = await db.collection("groupChats").updateOne(
+    const user = await db.collection("imUsers").findOne({
+      _id: new ObjectId(memberId as string),
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await db.collection("groupChats").updateOne(
       { _id: new ObjectId(groupId as string) },
       {
-        $pull: {
-          members: { userId: new ObjectId(memberId as string) } as any,
+        $addToSet: {
+          members: {
+            userId: new ObjectId(memberId as string),
+            username: user.username,
+            joinedAt: new Date(),
+          },
         },
       }
     );
 
-    if (result.modifiedCount === 0) {
-      return res.status(400).json({ message: "Failed to remove member" });
-    }
-
-    res.status(200).json({ message: "Member deleted from group" });
+    res.status(200).json({ message: "Member added to group" });
   } catch (error) {
-    console.error("Error deleting member from group:", error);
+    console.error("Error adding member to group:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 }

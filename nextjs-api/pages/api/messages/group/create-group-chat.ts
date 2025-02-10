@@ -28,6 +28,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const memberUserNames = [...new Set(userData.map((user) => user.username))];
 
     const groupChat: GroupChat = {
+      _id: new ObjectId(),
       groupName: groupName,
       members: memberUserNames.map((username: string) => ({
         userId: new ObjectId(

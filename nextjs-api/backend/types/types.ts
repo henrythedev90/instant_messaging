@@ -36,6 +36,7 @@ export interface Message {
 }
 
 export interface GroupChat {
+  _id: ObjectId;
   groupName: string;
   members: GroupMember[];
   createdAt: Date;
