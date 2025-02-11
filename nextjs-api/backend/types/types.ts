@@ -15,18 +15,23 @@ export interface DecodedToken {
   iat: number;
   exp: number;
 }
-
-export interface Phonebook {
-  userId: ObjectId;
-  username: string;
-  contacts: Contact[];
-}
-
 export interface Contact {
+  ownerId: ObjectId;
   contactId: ObjectId;
   nickname: string;
   addedAt: Date;
 }
+// export interface Phonebook {
+//   userId: ObjectId;
+//   username: string;
+//   contacts: Contact[];
+// }
+
+// export interface Contact {
+//   contactId: ObjectId;
+//   nickname: string;
+//   addedAt: Date;
+// }
 
 export interface Message {
   sender: ObjectId;
