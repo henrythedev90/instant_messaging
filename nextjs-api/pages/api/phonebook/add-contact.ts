@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { Phonebook, Contact } from "../../../backend/types/types";
+// import { Phonebook, Contact } from "../../../backend/types/types";
 import { authenticate } from "../../../backend/middleware/authenticate";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
