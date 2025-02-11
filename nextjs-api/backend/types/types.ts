@@ -18,21 +18,10 @@ export interface DecodedToken {
 export interface Contact {
   ownerId: ObjectId;
   contactId: ObjectId;
-  nickname: string;
+  contactUsername: string;
+  nickname: string | null;
   addedAt: Date;
 }
-// export interface Phonebook {
-//   userId: ObjectId;
-//   username: string;
-//   contacts: Contact[];
-// }
-
-// export interface Contact {
-//   contactId: ObjectId;
-//   nickname: string;
-//   addedAt: Date;
-// }
-
 export interface Message {
   sender: ObjectId;
   receiver: ObjectId;

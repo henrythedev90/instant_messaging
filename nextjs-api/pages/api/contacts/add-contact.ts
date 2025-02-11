@@ -10,16 +10,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const userId = (req as any).user.userId;
 
   if (req.method === "POST") {
-    const { nickname } = req.body;
+    const { contactUsername } = req.body;
 
-    if (!nickname) {
+    if (!contactUsername) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     try {
       const existingContact = await db
         .collection("imUsers")
-        .findOne<ImUser>({ username: nickname });
+        .findOne<ImUser>({ username: contactUsername });
 
       if (!existingContact) {
         return res.status(404).json({ message: "Contact not found" });
@@ -29,13 +29,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const newContact: Contact = {
         ownerId: new ObjectId(userId as string),
         contactId: contactId,
-        nickname,
+        contactUsername: existingContact.username,
+        nickname: null,
         addedAt: new Date(),
       };
 
       await db.collection("contacts").insertOne(newContact);
 
-      return res.status(201).json({ message: "Contact added successfully" });
+      return res.status(201).json({
+        message: "Contact added successfully",
+        contact: newContact,
+      });
     } catch (error) {
       console.error("Error adding contact:", error);
       return res.status(500).json({ message: "Internal server error" });

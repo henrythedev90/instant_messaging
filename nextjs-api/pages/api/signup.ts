@@ -9,6 +9,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   const client = await clientPromise;
+
   const db = client.db("Cluster0");
 
   if (req.method === "GET") {
@@ -73,9 +74,11 @@ export default async function handler(
         },
         token: token,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating user:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res
+        .status(500)
+        .json({ name: error.name, message: error.message, stack: error.stack });
     }
   } else {
     res.status(405).json({ message: "Method not allowed" });
