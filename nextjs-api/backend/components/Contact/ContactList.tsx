@@ -3,7 +3,7 @@ import { useSocket } from "../../context/SocketProvider";
 import { Contact } from "../../types/types";
 import axios from "axios";
 import { useAuth } from "../auth/AuthContext";
-import { Contact as ContactType } from "../../types/types";
+import { ObjectId } from "mongodb";
 
 export default function ContactList() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -12,6 +12,7 @@ export default function ContactList() {
   console.log(token, "this is the token");
 
   const fetchContacts = async () => {
+    debugger;
     try {
       const res = await axios.get("/api/contacts/get-all-contact", {
         headers: {
@@ -19,8 +20,12 @@ export default function ContactList() {
         },
       });
 
-      console.log("Fetched contacts:", res.data);
-      setContacts(res.data);
+      console.log("Fetched contacts:", res.data.contacts);
+      console.log("API response:", res.data);
+      console.log("Is contacts an array?", Array.isArray(res.data));
+
+      setContacts(res.data.contacts);
+      console.log("Contacts:", contacts);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         try {
@@ -36,7 +41,6 @@ export default function ContactList() {
   };
 
   useEffect(() => {
-    console.log(token, "this is the token");
     if (!token) return;
 
     fetchContacts();
@@ -56,29 +60,24 @@ export default function ContactList() {
   return (
     <ul className="flex flex-col gap-2">
       {contacts.length > 0 ? (
-        contacts.map((contact: ContactType) => (
+        contacts.map((contact: Contact) => (
           <li
             key={contact.contactId.toString()}
-            className="flex items-center justify-between p-3 bg-white rounded-lg shadow hover:bg-gray-50"
+            className="p-3 bg-white rounded-lg shadow hover:bg-gray-50 cursor-pointer"
           >
-            <span className="text-sm font-medium text-gray-800">
-              {contact.contactUsername}
-            </span>
-            {/* <span
-              className={`text-xs px-2 py-1 rounded-full ${
-                onlineUser.includes(contact.contactId.toString())
-                  ? "bg-green-100 text-green-800"
-                  : "bg-gray-100 text-gray-800"
-              }`}
-            >
-              {onlineUser.includes(contact.contactId.toString())
-                ? "Online"
-                : "Offline"}
-            </span> */}
+            <div className="flex items-center justify-between">
+              <span className="text-gray-800">{contact.contactUsername}</span>
+              {onlineUser?.includes(contact.contactId.toString()) && (
+                <span
+                  className="w-2 h-2 bg-green-500 rounded-full"
+                  title="Online"
+                ></span>
+              )}
+            </div>
           </li>
         ))
       ) : (
-        <li className="text-center text-gray-500 p-4">hello</li>
+        <li className="text-center text-gray-500 p-4">No contacts found</li>
       )}
     </ul>
   );
