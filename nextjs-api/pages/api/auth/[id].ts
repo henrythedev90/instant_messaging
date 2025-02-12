@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import clientPromise from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { authorizeOwnResource } from "../../../backend/middleware/authenticateOwnResource";
+import { authorizeAndAuthenticate } from "../../../backend/middleware/authenticateOwnResource";
 // GET	/api/auth/:id	Retrieve a single user
 // PUT/PATCH	/api/auth/:id	Update user details
 // DELETE	/api/auth/:id	Delete a user
@@ -16,21 +16,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   const userId = new ObjectId(id as string);
-
-  if (req.method === "GET") {
-    try {
-      const user = await db
-        .collection("imUsers")
-        .findOne({ _id: userId }, { projection: { password: 0 } });
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      res.status(200).json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Internal Server Error" });
-    }
-  } else if (req.method === "PUT") {
+  if (req.method === "PUT") {
     const { firstName, lastName, email } = req.body;
     const updateFields: any = { updatedAt: new Date().toLocaleString() };
     if (firstName) updateFields.firstName = firstName;
@@ -75,4 +61,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default authorizeOwnResource(handler);
+export default authorizeAndAuthenticate(handler);

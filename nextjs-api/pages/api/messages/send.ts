@@ -13,7 +13,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { receiverNickname, content } = req.body;
+    const { receiverName, content } = req.body;
     const senderId = (req as any).user.userId;
     const senderUsername = (req as any).user.username;
 
@@ -23,20 +23,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         .json({ message: "Message content cannot be empty" });
     }
 
-    if (receiverNickname === senderUsername) {
+    if (receiverName === senderUsername) {
       return res
         .status(400)
         .json({ message: "Cannot send message to yourself" });
     }
 
     const senderContacts = await db
-      .collection("phonebook")
-      .findOne({ userId: new ObjectId(senderId as string) });
+      .collection("contacts")
+      .findOne({ ownerId: new ObjectId(senderId as string) });
 
     if (
       !senderContacts ||
       !senderContacts.contacts.some(
-        (contact: Contact) => contact.nickname === receiverNickname
+        (contact: Contact) => contact.contactUsername === receiverName
       )
     ) {
       return res
@@ -44,12 +44,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         .json({ message: "Cannot send message to users not in your contacts" });
     }
 
-    const receiver = await db
-      .collection("phonebook")
-      .findOne(
-        { "contacts.nickname": receiverNickname },
-        { projection: { "contacts.$": 1 } }
-      );
+    const receiver = await db.collection("contacts").findOne({
+      ownerId: new ObjectId(senderId as string),
+      contactUsername: receiverName,
+    });
 
     console.log(receiver, "this is the receiver from DB");
 
@@ -57,11 +55,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ message: "Receiver not found" });
     }
 
+    const receiverContent = receiver.contacts.find(
+      (contact: Contact) => contact.contactUsername === receiverName
+    );
+
     const message: Message = {
       sender: new ObjectId(senderId as string),
-      receiver: receiver.contacts[0].contactId, // Updated this line to access contactId from the contacts array
+      receiver: new ObjectId(receiverContent?.contactId as string),
       content: content,
       timestamp: new Date(),
+      status: "delivered",
     };
 
     await db.collection("messages").insertOne(message);

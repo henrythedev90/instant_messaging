@@ -61,6 +61,16 @@ export default async function handler(
         { expiresIn: "1h" }
       );
 
+      const refreshToken = jwt.sign(
+        {
+          userId: newUser._id.toString(),
+          email: newUser.email,
+          username: newUser.username,
+        },
+        process.env.JWT_SECRET as string,
+        { expiresIn: "7d" }
+      );
+
       await db.collection("imUsers").insertOne(newUser);
 
       res.status(201).json({
@@ -73,6 +83,7 @@ export default async function handler(
           lastName: newUser.lastName,
         },
         token: token,
+        refreshToken: refreshToken,
       });
     } catch (error: any) {
       console.error("Error creating user:", error);
