@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
-      await fetch("/api/auth/log-out", {
+      await fetch("/api/auth/logout", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
