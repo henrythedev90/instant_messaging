@@ -42,10 +42,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const newMessage: GroupChatMessage = {
+      groupId: new ObjectId(groupId as string),
       senderUsername: senderUsername,
       senderId: new ObjectId(userId as string),
       message: message,
       timestamp: new Date(),
+      status: "delivered",
     };
 
     await db

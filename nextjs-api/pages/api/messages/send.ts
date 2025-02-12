@@ -62,6 +62,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       receiver: receiver.contacts[0].contactId, // Updated this line to access contactId from the contacts array
       content: content,
       timestamp: new Date(),
+      status: "delivered",
     };
 
     await db.collection("messages").insertOne(message);

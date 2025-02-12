@@ -27,6 +27,7 @@ export interface Message {
   receiver: ObjectId;
   content: string;
   timestamp: Date;
+  status: "delivered" | "read";
 }
 
 export interface GroupChat {
@@ -47,8 +48,10 @@ export interface GroupMember {
 }
 
 export interface GroupChatMessage {
+  groupId: ObjectId;
   senderId: ObjectId;
   senderUsername: string;
   message: string;
   timestamp: Date;
+  status: "delivered" | "read";
 }
