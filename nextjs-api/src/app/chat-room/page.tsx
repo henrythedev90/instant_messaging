@@ -6,7 +6,7 @@ import { SocketProvider } from "../../../backend/context/SocketProvider";
 import { useAuth } from "../../../backend/components/auth/AuthContext";
 import { ImUser } from "../../../backend/types/types";
 import ChatRoomContent from "./ChatRoomContent";
-
+import { ContactsProvider } from "../../../backend/context/ContactProvider";
 export default function ChatRoom() {
   const [users, setUsers] = useState<{ user: ImUser } | null>(null);
   const { token, refreshToken } = useAuth(); // Add refreshToken to useAuth
@@ -42,9 +42,11 @@ export default function ChatRoom() {
 
   return (
     <ProtectedRoute>
-      <SocketProvider userId={users?.user?._id?.toString() || ""}>
-        {users && <ChatRoomContent user={users.user} />}
-      </SocketProvider>
+      <ContactsProvider>
+        <SocketProvider userId={users?.user?._id?.toString() || ""}>
+          {users && <ChatRoomContent user={users.user} />}
+        </SocketProvider>
+      </ContactsProvider>
     </ProtectedRoute>
   );
 }

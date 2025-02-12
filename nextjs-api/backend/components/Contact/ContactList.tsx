@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useSocket } from "../../context/SocketProvider";
-import { Contact } from "../../types/types";
+import { useContacts } from "../../context/ContactProvider";
 import axios from "axios";
 import { useAuth } from "../auth/AuthContext";
-import { ObjectId } from "mongodb";
+import { Contact } from "../../types/types";
 
 export default function ContactList() {
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const { contacts, setContacts } = useContacts();
   const { onlineUser, socket } = useSocket();
   const { token, refreshToken } = useAuth();
   console.log(token, "this is the token");
@@ -20,12 +20,7 @@ export default function ContactList() {
         },
       });
 
-      console.log("Fetched contacts:", res.data.contacts);
-      console.log("API response:", res.data);
-      console.log("Is contacts an array?", Array.isArray(res.data));
-
       setContacts(res.data.contacts);
-      console.log("Contacts:", contacts);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         try {
@@ -44,9 +39,10 @@ export default function ContactList() {
     if (!token) return;
 
     fetchContacts();
-    // Listen for new contact events
-    socket?.on("new_contact", () => {
-      fetchContacts();
+
+    socket?.on("new_contact", (newContact) => {
+      console.log("New contact received:", newContact);
+      setContacts((prevContacts) => [...prevContacts, newContact]);
     });
 
     return () => {
