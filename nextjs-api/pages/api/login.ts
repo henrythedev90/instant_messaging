@@ -38,15 +38,26 @@ export default async function handler(
         username: user.username,
       },
       process.env.JWT_SECRET as string,
-      { expiresIn: "1h" }
+      { expiresIn: "5m" }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        userId: user._id.toString(),
+        email: user.email,
+        username: user.username,
+      },
+      process.env.JWT_SECRET as string,
+      { expiresIn: "7d" }
     );
 
     res.status(200).json({
       message: "Login successful",
       timestamp: Date.now().toString(),
       token,
-      testInPostman: `Content-Type: application/json\nAuthorization: Bearer ${token}`,
+      refreshToken,
     });
+    console.log(refreshToken, "this is the refresh token");
   } catch (error) {
     console.error("Error logging in:", error);
     res.status(500).json({ message: "Internal server error" });

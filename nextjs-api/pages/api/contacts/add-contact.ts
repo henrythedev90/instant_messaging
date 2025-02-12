@@ -26,6 +26,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
       const contactId = new ObjectId(existingContact._id);
 
+      const existingContactInContacts = await db
+        .collection("contacts")
+        .findOne<Contact>({
+          ownerId: new ObjectId(userId as string),
+          contactId: contactId,
+        });
+
+      if (existingContactInContacts) {
+        return res.status(400).json({ message: "Contact already exists" });
+      }
+
       const newContact: Contact = {
         ownerId: new ObjectId(userId as string),
         contactId: contactId,
