@@ -6,14 +6,13 @@ import { ObjectId } from "mongodb";
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
   const db = client.db("Cluster0");
-
+  const userId = (req as any).user.userId;
   if (req.method !== "DELETE") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
   try {
     const { groupId } = req.query;
-    const currentUser = (req as any).user.username;
 
     if (!groupId) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -27,7 +26,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ message: "Group chat not found" });
     }
 
-    if (currentUser !== groupChat.admin.username) {
+    if (userId !== groupChat.adminId.toString()) {
       return res
         .status(403)
         .json({ message: "You are not the admin of this group" });

@@ -6,14 +6,14 @@ import { GroupMember } from "../../../../backend/types/types";
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
   const db = client.db("Cluster0");
+  const userId = (req as any).user.userId;
 
   if (req.method !== "PUT") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
   try {
-    const { groupId, newAdmin } = req.body;
-    const currentUser = (req as any).user.username;
+    const { groupId, username } = req.body;
 
     const groupChat = await db
       .collection("groupChats")
@@ -24,25 +24,25 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     const isMember = await db
       .collection("imUsers")
-      .findOne({ username: newAdmin });
+      .findOne({ username: username });
 
     if (!isMember) {
       return res.status(404).json({ message: "New admin not found" });
     }
-
-    if (currentUser !== groupChat.admin.username) {
+    // console.log(userId, groupChat.adminId.toString());
+    if (userId !== groupChat.adminId.toString()) {
       return res
         .status(403)
         .json({ message: "You are not the admin of this group" });
     }
-    if (newAdmin === currentUser) {
+    if (isMember._id.toString() === groupChat.adminId.toString()) {
       return res
         .status(400)
         .json({ message: "You cannot change the admin to yourself" });
     }
     if (
       !groupChat.members.some(
-        (member: GroupMember) => member.username === newAdmin
+        (member: GroupMember) => member.userId.toString() === userId
       )
     ) {
       return res.status(400).json({
@@ -50,12 +50,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
-    await db
-      .collection("groupChats")
-      .updateOne(
-        { _id: new ObjectId(groupId as string) },
-        { $set: { admin: { _id: isMember._id, username: isMember.username } } }
-      );
+    await db.collection("groupChats").updateOne(
+      { _id: new ObjectId(groupId as string) },
+      {
+        $set: {
+          adminId: isMember._id,
+        },
+      }
+    );
 
     return res.status(200).json({ message: "Admin updated successfully" });
   } catch (error) {

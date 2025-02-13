@@ -27,9 +27,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ message: "Message not found" });
     }
 
-    console.log("Sender ID from request:", senderId);
-    console.log("Sender ID from message:", message.sender);
-
     if ((message.sender as ObjectId).toString() !== senderId) {
       return res.status(403).json({ message: "Unauthorized" });
     }

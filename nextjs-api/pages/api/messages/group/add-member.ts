@@ -13,7 +13,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { groupId, memberId } = req.body;
+    const { groupId, memberId, username } = req.body;
     const userId = (req as any).user.userId;
 
     if (!ObjectId.isValid(groupId) || !ObjectId.isValid(memberId)) {
@@ -30,14 +30,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ message: "Group not found" });
     }
 
-    if (groupChat.admin._id.toString() !== userId) {
+    if (groupChat.adminId.toString() !== userId) {
       return res
         .status(403)
         .json({ message: "You must be the admin to add members" });
     }
 
     const isMember = groupChat.members.some(
-      (member) => member.userId.toString() === memberId
+      (member) => member.username === username
     );
 
     if (isMember) {
@@ -47,7 +47,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const user = await db.collection("imUsers").findOne({
-      _id: new ObjectId(memberId as string),
+      username: username,
     });
 
     if (!user) {
@@ -59,7 +59,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       {
         $addToSet: {
           members: {
-            userId: new ObjectId(memberId as string),
+            userId: user._id,
             username: user.username,
             joinedAt: new Date().toLocaleString(),
           },

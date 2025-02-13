@@ -25,6 +25,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       })
       .toArray();
 
+    if (userData.length !== allMembers.length) {
+      return res.status(400).json({ message: "Invalid members" });
+    }
+    if (userData.length <= 2) {
+      return res
+        .status(400)
+        .json({ message: "At least 2 members are required" });
+    }
+
     const memberUserNames = [...new Set(userData.map((user) => user.username))];
 
     const groupChat: GroupChat = {
@@ -39,11 +48,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         joinedAt: new Date(),
       })),
       createdAt: new Date(),
-      messages: [],
-      admin: {
-        _id: new ObjectId(userId as string),
-        username: currentUser,
+      adminId: new ObjectId(userId as string),
+      lastMessage: {
+        messageId: new ObjectId(),
+        senderUsername: currentUser,
+        text: "",
+        timestamp: new Date(),
       },
+      updatedAt: new Date(),
     };
 
     const result = await db.collection("groupChats").insertOne(groupChat);

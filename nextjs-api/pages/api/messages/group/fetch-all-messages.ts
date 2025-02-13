@@ -2,12 +2,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { authenticate } from "../../../../backend/middleware/authenticate";
 import clientPromise from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { GroupChatMessage, GroupChat } from "../../../../backend/types/types";
+import { GroupChat } from "../../../../backend/types/types";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
   const db = client.db("Cluster0");
-  const currentUser = (req as any).user.username;
   const userId = (req as any).user.userId;
   if (req.method !== "GET") {
     return res.status(405).json({ message: "Method not allowed" });
@@ -29,7 +28,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     const allGroupMessages = groupChats.map((chat: GroupChat) => ({
       _id: chat._id.toString(),
       groupName: chat.groupName,
-      messages: chat.messages,
+      adminId: chat.adminId.toString(),
+      members: chat.members,
+      createdAt: chat.createdAt,
+      lastMessage: chat.lastMessage,
+      updatedAt: chat.updatedAt,
     }));
 
     return res.status(200).json({

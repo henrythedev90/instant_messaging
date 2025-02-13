@@ -12,7 +12,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { groupId, memberId } = req.body;
+    const { groupId, memberId, username } = req.body;
     const userId = (req as any).user.userId;
 
     // Validate ObjectId format
@@ -30,7 +30,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ message: "Group not found" });
     }
 
-    if (groupChat.admin._id.toString() !== userId && userId !== memberId) {
+    if (groupChat.adminId.toString() !== userId && userId !== memberId) {
       return res
         .status(403)
         .json({ message: "You must be the admin to delete users" });
@@ -38,7 +38,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Check if member exists in group
     const memberExists = groupChat.members.some(
-      (member) => member.userId.toString() === memberId
+      (member) => member.username === username
     );
     if (!memberExists) {
       return res.status(404).json({ message: "Member not found in group" });
@@ -48,7 +48,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       { _id: new ObjectId(groupId as string) },
       {
         $pull: {
-          members: { userId: new ObjectId(memberId as string) } as any,
+          members: { username: username } as any,
         },
       }
     );

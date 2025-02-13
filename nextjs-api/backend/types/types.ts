@@ -34,13 +34,11 @@ export interface Message {
 export interface GroupChat {
   _id: ObjectId;
   groupName: string;
+  adminId: ObjectId;
   members: GroupMember[];
   createdAt: Date;
-  messages: GroupChatMessage[];
-  admin: {
-    _id: ObjectId;
-    username: string;
-  };
+  lastMessage: LastMessage;
+  updatedAt: Date;
 }
 export interface GroupMember {
   userId: ObjectId;
@@ -49,10 +47,18 @@ export interface GroupMember {
 }
 
 export interface GroupChatMessage {
+  _id: ObjectId;
   groupId: ObjectId;
   senderId: ObjectId;
   senderUsername: string;
-  message: string;
+  text: string;
   timestamp: Date;
   status: "delivered" | "read";
+}
+
+export interface LastMessage {
+  messageId: ObjectId;
+  senderUsername: string;
+  text: string;
+  timestamp: Date;
 }
