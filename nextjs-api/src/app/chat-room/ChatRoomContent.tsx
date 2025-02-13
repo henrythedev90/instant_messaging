@@ -26,6 +26,7 @@ export default function ChatRoomContent({ user }: { user: ImUser }) {
           return;
         }
 
+        router.push("/chat-room");
         setIsLoading(false);
       } catch (error) {
         console.error("Authentication error:", error);
