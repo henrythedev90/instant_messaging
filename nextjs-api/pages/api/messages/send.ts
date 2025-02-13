@@ -60,6 +60,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     const message: Message = {
+      _id: new ObjectId(),
       sender: new ObjectId(senderId as string),
       receiver: new ObjectId(receiverContent?.contactId as string),
       content: content,

@@ -23,6 +23,7 @@ export interface Contact {
   addedAt: Date;
 }
 export interface Message {
+  _id: ObjectId;
   sender: ObjectId;
   receiver: ObjectId;
   content: string;

@@ -1,16 +1,44 @@
 import { io } from "socket.io-client";
 
-const getAuthToken = () => {
+// Function to retrieve the authentication token from localStorage
+const getAuthToken = (): string | null => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("token");
+    return localStorage.getItem("token"); // Retrieve token from localStorage
   }
-  return null;
+  return null; // Return null if running on the server
 };
 
-const socket = io("http://localhost:3000/", {
-  auth: { token: getAuthToken() },
-  reconnection: true,
-  transports: ["websocket"],
+// Create socket connection with authentication token and reconnection options
+const socket = io("http://localhost:3000", {
+  auth: {
+    token: getAuthToken(), // Pass token in the auth object
+  },
+  reconnection: true, // Enable reconnection on disconnection
+  transports: ["websocket"], // Use WebSocket transport for real-time communication
+  timeout: 10000, // Set a timeout for the connection
+});
+
+// Handle socket connection errors
+socket.on("connect_error", (error) => {
+  console.error("Socket connection error:", error);
+});
+
+// Optionally handle reconnection attempts and success
+socket.on("reconnect_attempt", (attempt) => {
+  console.log(`Reconnecting: Attempt ${attempt}`);
+});
+
+socket.on("reconnect", () => {
+  console.log("Reconnected to socket server");
+});
+
+socket.on("reconnect_failed", () => {
+  console.error("Reconnection failed");
+});
+
+// Log successful connection
+socket.on("connect", () => {
+  console.log("Connected to socket server with id:", socket.id);
 });
 
 export default socket;

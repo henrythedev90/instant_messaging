@@ -9,10 +9,10 @@ export default function AddContact() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  // const [showModal, setShowModal] = useState(false);
   const { token } = useAuth();
   const socket = useSocket();
-  const { contacts, setContacts } = useContacts();
+  const { setContacts } = useContacts();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

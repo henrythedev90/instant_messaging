@@ -38,7 +38,7 @@ export default async function handler(
         username: user.username,
       },
       process.env.JWT_SECRET as string,
-      { expiresIn: "5m" }
+      { expiresIn: "7h" }
     );
 
     const refreshToken = jwt.sign(
@@ -57,7 +57,6 @@ export default async function handler(
       token,
       refreshToken,
     });
-    console.log(refreshToken, "this is the refresh token");
   } catch (error) {
     console.error("Error logging in:", error);
     res.status(500).json({ message: "Internal server error" });

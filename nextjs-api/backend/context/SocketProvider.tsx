@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { Contact } from "../types/types";
 import socket from "../utils/socket";
 import { Socket } from "socket.io-client";
 
 const SocketContext = createContext<{
   socket: Socket;
   onlineUser: string[];
+  setOnlineUser: (contacts: string[]) => void;
 } | null>(null);
 
 export const SocketProvider = ({
@@ -19,10 +21,12 @@ export const SocketProvider = ({
   useEffect(() => {
     if (!userId) return;
 
+    console.log("Emitting userOnline with userId:", userId);
     socket.emit("userOnline", userId);
 
-    socket.on("updateOnlineContacts", (contacts: string[]) => {
-      setOnlineUser(contacts);
+    socket.on("updateOnlineContacts", (contacts: Contact[]) => {
+      console.log("Received online contacts:", contacts);
+      setOnlineUser(contacts.map((contact) => contact.contactUsername));
     });
 
     return () => {
@@ -31,7 +35,7 @@ export const SocketProvider = ({
   }, [userId]);
 
   return (
-    <SocketContext.Provider value={{ socket, onlineUser }}>
+    <SocketContext.Provider value={{ socket, onlineUser, setOnlineUser }}>
       {children}
     </SocketContext.Provider>
   );

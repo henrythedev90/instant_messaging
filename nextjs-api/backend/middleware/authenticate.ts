@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { DecodedToken } from "../types/types";
 
@@ -58,3 +59,41 @@ export function authenticate(
     }
   };
 }
+
+// Combined socket.io setup with JWT verification
+const server = require("http").createServer(); // Ensure server is defined
+const io = new Server(server, {
+  // Use the Server class to create a new instance
+  cors: {
+    origin: "http://localhost:3000", // Allow connections from your client
+    methods: ["GET", "POST"],
+  },
+});
+
+io.use((socket: any, next: any) => {
+  console.log("Socket:", socket); // Log the handshake object
+  const token = socket.handshake.auth.token; // Retrieve token from handshake auth object
+
+  if (token) {
+    // Validate the token (e.g., using JWT or another method)
+    // If token is valid, allow connection
+    try {
+      const JWT_SECRET = process.env.JWT_SECRET; // Ensure JWT_SECRET is defined
+      if (!JWT_SECRET) {
+        return next(new Error("JWT_SECRET is not defined"));
+      }
+      const user = jwt.verify(token, JWT_SECRET) as { userId: string }; // Validate JWT with the secret and assert type
+      socket.userId = user.userId; // Add user information to socket
+      next(); // Proceed with the connection
+    } catch (err) {
+      return next(new Error("Authentication error"));
+    }
+  } else {
+    return next(new Error("Authentication error"));
+  }
+});
+
+io.on("connection", (socket: any) => {
+  console.log("User connected with ID:", socket.userId);
+  // Handle other events...
+});
