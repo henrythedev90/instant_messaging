@@ -3,6 +3,7 @@ import clientPromise from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { Message, Contact } from "../../../backend/types/types";
 import { authenticate } from "../../../backend/middleware/authenticate";
+import { getSocketServer } from "../../../backend/config/socket";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
@@ -69,6 +70,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     };
 
     await db.collection("messages").insertOne(message);
+
+    const io = getSocketServer();
+    if (io) {
+      io.to(message.receiver.toString()).emit("receiveMessage", message);
+    }
+
     res.status(201).json({ message: "Message sent successfully" });
   } catch (error) {
     console.error("Error sending message:", error);

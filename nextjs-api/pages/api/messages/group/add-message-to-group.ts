@@ -3,6 +3,7 @@ import { authenticate } from "../../../../backend/middleware/authenticate";
 import { GroupChatMessage, GroupMember } from "../../../../backend/types/types";
 import clientPromise from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
+import { getSocketServer } from "../../../../backend/config/socket";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const client = await clientPromise;
@@ -67,6 +68,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         },
       }
     );
+
+    const io = getSocketServer();
+    if (io) {
+      io.to(groupId as string).emit("receiveGroupMessage", newMessage);
+    }
 
     return res.status(200).json({ message: "Message added to group" });
   } catch (error) {

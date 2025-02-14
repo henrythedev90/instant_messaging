@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useSocket } from "../../context/SocketProvider";
 import { useContacts } from "../../context/ContactProvider";
 import axios from "axios";
 import { useAuth } from "../auth/AuthContext";
@@ -8,7 +7,6 @@ import { Contact } from "../../types/types";
 export default function ContactList() {
   const [isLoading, setIsLoading] = useState(true);
   const { contacts, setContacts } = useContacts();
-  const { onlineUser, setOnlineUser, socket } = useSocket();
   const { token, refreshToken } = useAuth();
   console.log(token, "this is the token");
 
@@ -41,29 +39,7 @@ export default function ContactList() {
     setIsLoading(true);
     fetchContacts();
     setIsLoading(false);
-    socket?.on("new_contact", (newContact) => {
-      console.log("New contact received:", newContact);
-      setContacts((prevContacts) => [...prevContacts, newContact]);
-    });
-
-    // Ensure that the onlineUser state is updated when the socket emits the event
-    socket?.on("updateOnlineContacts", (contacts: Contact[]) => {
-      console.log("Received updateOnlineContacts event");
-      console.log("Contacts received:", contacts);
-      if (Array.isArray(contacts)) {
-        console.log("Contacts array:", contacts);
-        // Update the onlineUser state
-        setOnlineUser(contacts.map((contact) => contact.contactUsername)); // Assuming onlineUser is a state variable
-      } else {
-        console.error("Expected an array of contacts, but received:", contacts);
-      }
-    });
-
-    return () => {
-      socket?.off("new_contact");
-      socket?.off("updateOnlineContacts"); // Clean up the event listener
-    };
-  }, [socket, token]);
+  }, [token]);
 
   // console.log("Online Users:", onlineUser);
   console.log("Contacts:", contacts);
@@ -84,14 +60,6 @@ export default function ContactList() {
                   <span className="text-gray-800">
                     {contact.contactUsername}
                   </span>
-                  {onlineUser?.includes(contact.contactId.toString()) && (
-                    <span
-                      className="w-2 h-2 bg-green-500 rounded-full"
-                      title="Online"
-                    >
-                      hello
-                    </span>
-                  )}
                 </div>
               </li>
             ))
@@ -100,16 +68,6 @@ export default function ContactList() {
           )}
         </ul>
       )}
-      <div className="mt-4">
-        <h3 className="font-bold">Online Users:</h3>
-        <ul>
-          {onlineUser?.map((userId) => (
-            <li key={userId} className="text-gray-600">
-              {userId}
-            </li>
-          )) || <li className="text-gray-500">No users online</li>}
-        </ul>
-      </div>
     </div>
   );
 }

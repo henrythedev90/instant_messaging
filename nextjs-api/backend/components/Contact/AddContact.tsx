@@ -1,7 +1,6 @@
 import axios from "axios";
 import React, { useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { useSocket } from "../../context/SocketProvider";
 import { useContacts } from "../../context/ContactProvider"; // Import here
 
 export default function AddContact() {
@@ -11,7 +10,6 @@ export default function AddContact() {
   const [loading, setLoading] = useState(false);
   // const [showModal, setShowModal] = useState(false);
   const { token } = useAuth();
-  const socket = useSocket();
   const { setContacts } = useContacts();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -36,9 +34,6 @@ export default function AddContact() {
 
       // Optimistically update UI
       setContacts((prevContacts) => [...prevContacts, res.data.contact]);
-
-      // Emit socket event
-      socket?.socket.emit("new_contact", newContact);
 
       setSuccess("Contact added successfully!");
     } catch (error) {

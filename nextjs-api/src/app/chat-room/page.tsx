@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import ProtectedRoute from "../../../backend/components/auth/ProtectedRoute";
 import axios from "axios";
-import { SocketProvider } from "../../../backend/context/SocketProvider";
 import { useAuth } from "../../../backend/components/auth/AuthContext";
 import { ImUser } from "../../../backend/types/types";
 import ChatRoomContent from "./ChatRoomContent";
@@ -43,9 +42,7 @@ export default function ChatRoom() {
   return (
     <ProtectedRoute>
       <ContactsProvider>
-        <SocketProvider userId={users?.user?._id?.toString() || ""}>
-          {users && <ChatRoomContent user={users.user} />}
-        </SocketProvider>
+        {users && <ChatRoomContent user={users.user} />}
       </ContactsProvider>
     </ProtectedRoute>
   );
