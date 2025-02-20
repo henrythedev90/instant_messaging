@@ -15,27 +15,42 @@ export const initSocketServer = (server: any) => {
     io.on("connection", (socket) => {
       console.log(`User connected: ${socket.id}`);
 
-      socket.on("joinRoom", (roomId: string) => {
+      socket.on("joinPrivateRoom", (roomId: string) => {
         socket.join(roomId);
+        console.log(`User ${socket.id} joined private room: ${roomId}`);
       });
 
-      socket.on("sendMessage", (message: Message) => {
-        if (io) {
-          io.to(message.receiver.toString()).emit("receiveMessage", message);
-        }
+      socket.on("joinGroupRoom", (groupId: string) => {
+        socket.join(groupId);
+        console.log(`User ${socket.id} joined group room: ${groupId}`);
       });
 
-      socket.on("sendGroupMessage", (message: GroupChatMessage) => {
-        if (io) {
-          io.to(message.groupId.toString()).emit(
-            "receiveGroupMessage",
-            message
-          );
+      socket.on(
+        "sendPrivateMessage",
+        ({ message, roomId }: { message: Message; roomId: string }) => {
+          if (io) {
+            io.to(roomId).emit("receivePrivateMessage", message);
+          }
         }
-      });
+      );
+
+      socket.on(
+        "sendGroupMessage",
+        ({
+          message,
+          groupId,
+        }: {
+          message: GroupChatMessage;
+          groupId: string;
+        }) => {
+          if (io) {
+            io.to(groupId).emit("receiveGroupMessage", message);
+          }
+        }
+      );
 
       socket.on("disconnect", () => {
-        console.log(`User disconnected: ${socket.id}`);
+        console.log(`User ${socket.id} disconnected`);
       });
     });
   }

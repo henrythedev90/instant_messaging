@@ -36,34 +36,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       console.error("Error updating message:", error);
       res.status(500).json({ message: "Internal server error" });
     }
-  } else if (req.method === "DELETE") {
-    if (req.method !== "DELETE") {
-      return res.status(405).json({ message: "Method not allowed" });
-    }
-
-    try {
-      const { messageId } = req.query;
-
-      if (!messageId) {
-        return res.status(400).json({ message: "Message ID is required" });
-      }
-
-      const result = await db.collection("messages").deleteOne({
-        _id: new ObjectId(messageId as string),
-      });
-
-      if (result.deletedCount === 0) {
-        return res.status(404).json({ message: "Message not found" });
-      }
-
-      res.status(200).json({
-        message: "Message deleted",
-        deletedCount: result.deletedCount,
-      });
-    } catch (error) {
-      console.error("Error deleting message:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
   }
 }
 
