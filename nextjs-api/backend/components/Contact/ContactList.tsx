@@ -42,7 +42,6 @@ export default function ContactList() {
   }, [token]);
 
   // console.log("Online Users:", onlineUser);
-  console.log("Contacts:", contacts);
 
   return (
     <div>
@@ -57,9 +56,9 @@ export default function ContactList() {
                 className="p-3 bg-white rounded-lg shadow hover:bg-gray-50 cursor-pointer"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-800">
+                  <button className="text-gray-800">
                     {contact.contactUsername}
-                  </span>
+                  </button>
                 </div>
               </li>
             ))

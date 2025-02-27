@@ -4,9 +4,10 @@ import { initSocketServer } from "./backend/config/socket";
 
 const app = express();
 const server = createServer(app);
+const host = 3001;
 
 initSocketServer(server);
 
-server.listen(3001, () => {
-  console.log("⚡ Server running on http://localhost:3001");
+server.listen(host, () => {
+  console.log(`This Socket Server running on http://localhost:${host}`);
 });
