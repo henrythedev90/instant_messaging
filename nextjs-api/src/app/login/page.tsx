@@ -74,6 +74,13 @@ export default function LoginPage() {
       </form>
       <div>
         <p>new to site</p>
+        <button
+          onClick={() => {
+            router.push("/signup");
+          }}
+        >
+          Signed Up
+        </button>
       </div>
     </div>
   );

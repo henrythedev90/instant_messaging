@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 
 export default function SignUp() {
@@ -13,6 +13,7 @@ export default function SignUp() {
     password: "",
     confirmPassword: "",
   });
+
   const router = useRouter();
 
   const handleChanges = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,4 +49,71 @@ export default function SignUp() {
       console.error("Error signing up:", err);
     }
   };
+  return (
+    <div>
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label>First Name</label>
+          <input
+            type="text"
+            name="firstName"
+            value={values.firstName}
+            onChange={handleChanges}
+            required
+          />
+        </div>
+        <div>
+          <label>Last Name</label>
+          <input
+            type="text"
+            name="lastName"
+            value={values.lastName}
+            onChange={handleChanges}
+            required
+          />
+        </div>
+        <div>
+          <label>username</label>
+          <input
+            type="text"
+            name="username"
+            value={values.username}
+            onChange={handleChanges}
+            required
+          />
+        </div>
+        <div>
+          <label>Email</label>
+          <input
+            type="text"
+            name="email"
+            value={values.email}
+            onChange={handleChanges}
+            required
+          />
+        </div>
+        <div>
+          <label>password</label>
+          <input
+            type="password"
+            name="password"
+            value={values.password}
+            onChange={handleChanges}
+            required
+          />
+        </div>
+        <div>
+          <label>confirm password</label>
+          <input
+            type="password"
+            name="confirmPassword"
+            value={values.confirmPassword}
+            onChange={handleChanges}
+            required
+          />
+        </div>
+        <button type="submit">Sign Up</button>
+      </form>
+    </div>
+  );
 }
