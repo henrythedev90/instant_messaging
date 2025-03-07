@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useContacts } from "../../context/ContactProvider";
 import axios from "axios";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../../hooks/AuthContext";
 import { Contact } from "../../types/types";
 
 export default function ContactList() {

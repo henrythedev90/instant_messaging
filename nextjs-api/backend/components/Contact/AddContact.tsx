@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useState } from "react";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../../hooks/AuthContext";
 import { useContacts } from "../../context/ContactProvider"; // Import here
 
 export default function AddContact() {

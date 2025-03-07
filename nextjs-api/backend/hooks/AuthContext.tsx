@@ -11,6 +11,7 @@ interface AuthContextType {
   isLogginOut: boolean;
   refreshToken: () => Promise<string | null>;
   refreshTokenString: string | null;
+  userId: string | null;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
@@ -19,6 +20,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [user, setUser] = useState("");
   const router = useRouter();
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
@@ -59,12 +61,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (newToken: string, newRefreshToken: string) => {
+  const login = async (newToken: string, userId: string) => {
     try {
       localStorage.setItem("token", newToken);
-      localStorage.setItem("refreshToken", newRefreshToken);
+      localStorage.setItem("userId", userId);
       setToken(newToken);
-      setRefreshTokenString(newRefreshToken);
+      setUser(userId);
       router.push(`/chat-room`);
     } catch (error) {
       console.error("Error logging in:", error);
@@ -97,6 +99,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setToken,
         logout,
         login,
+        userId: user,
         isLogginOut: isLoggingOut,
         refreshToken,
         refreshTokenString,

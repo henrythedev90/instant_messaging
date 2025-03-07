@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "../../../backend/components/auth/AuthContext";
+import { useAuth } from "../../../backend/hooks/AuthContext";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 

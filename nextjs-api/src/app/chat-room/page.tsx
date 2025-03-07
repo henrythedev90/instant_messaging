@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import ProtectedRoute from "../../../backend/components/auth/ProtectedRoute";
 import axios from "axios";
-import { useAuth } from "../../../backend/components/auth/AuthContext";
+import { useAuth } from "../../../backend/hooks/AuthContext";
 import { ImUser } from "../../../backend/types/types";
 import ChatRoomContent from "./ChatRoomContent";
 import { ContactsProvider } from "../../../backend/context/ContactProvider";

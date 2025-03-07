@@ -7,6 +7,7 @@ export interface ImUser {
   firstName: string;
   lastName: string;
   password: string;
+  status: "online" | "offline" | "away";
 }
 
 export interface DecodedToken {
@@ -28,7 +29,7 @@ export interface Message {
   receiver: ObjectId;
   content: string;
   timestamp: Date;
-  status: "delivered" | "read";
+  read: boolean;
 }
 
 export interface GroupChat {
@@ -53,7 +54,7 @@ export interface GroupChatMessage {
   senderUsername: string;
   text: string;
   timestamp: Date;
-  status: "delivered" | "read";
+  readBy: string[];
 }
 
 export interface LastMessage {
@@ -61,4 +62,8 @@ export interface LastMessage {
   senderUsername: string;
   text: string;
   timestamp: Date;
+}
+
+export interface OnlineUsers {
+  users: string[];
 }
