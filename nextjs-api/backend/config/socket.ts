@@ -1,11 +1,16 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
-import { Message, GroupChatMessage } from "../types/types";
+import { ObjectId } from "mongodb";
+import { Message, GroupChatMessage, GroupChat } from "../types/types";
+import { isTokenBlacklisted } from "../utils/blacklistToken";
 import { useAuth } from "../hooks/AuthContext";
+import jwt from "jsonwebtoken";
 import axios from "axios";
 
 interface UserSocket extends Socket {
   userId?: string;
 }
+
+const JWT_SECRET = process.env.JWT_SECRET as string;
 
 const onlineUsers = new Map<string, string>(); // userId, socketId
 
@@ -26,6 +31,15 @@ export const initSocketServer = (server: any) => {
 
       //Handle user authentication and online status
       socket.on("userAuthenticated", (userId: string) => {
+        const token = socket.handshake.headers["authorization"]?.split(" ")[1];
+        if (token && isTokenBlacklisted(token)) {
+          console.log(`User ${userId} has been logged out, disconnecting...`);
+          socket.emit("error", {
+            message: "Your session has expired. Please log in again.",
+          });
+          socket.disconnect(); // Disconnect the user if token is blacklisted
+          return;
+        }
         socket.userId = userId;
         onlineUsers.set(userId, socket.id);
         //Broadcast user's online status to all connected clients
@@ -82,40 +96,46 @@ export const initSocketServer = (server: any) => {
       });
 
       //Group chat room handling
-      socket.on("joinGroupRoom", async (groupId: string) => {
-        try {
-          const res = await axios.get(
-            `http://localhost:3000/api/messages/group/fetch-all-messages?groupId=${groupId}`,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
-          );
-
-          const groupsData = res.data.groups;
-
-          if (!groupsData) {
-            console.log(`Group ${groupId} not found or no messages available.`);
-            socket.emit("groupConversationHistory", []);
-            return;
-          }
-          socket.join(groupId);
-          console.log(`User ${socket.id} joined group room: ${groupId}`);
-          socket.emit("groupConversationHistory", groupsData.messages || []);
-        } catch (error) {
-          if (axios.isAxiosError(error)) {
-            console.error(
-              "Error saving message:",
-              error.response?.data || error.message
+      socket.on(
+        "joinGroupRoom",
+        async ({ group, token }: { group: GroupChat; token: string }) => {
+          const groupId = group._id.toString();
+          try {
+            const res = await axios.get(
+              `http://localhost:3000/api/messages/group/fetch-all-messages?groupId=${groupId}`,
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
             );
-          } else {
-            console.error("Unexpected error saving message:", error);
+
+            const groupsData = res.data.groups;
+
+            if (!groupsData) {
+              console.log(
+                `Group ${groupId} not found or no messages available.`
+              );
+              socket.emit("groupConversationHistory", []);
+              return;
+            }
+            socket.join(groupId);
+            console.log(`User ${socket.id} joined group room: ${groupId}`);
+            socket.emit("groupConversationHistory", groupsData.messages || []);
+          } catch (error) {
+            if (axios.isAxiosError(error)) {
+              console.error(
+                "Error saving message:",
+                error.response?.data || error.message
+              );
+            } else {
+              console.error("Unexpected error saving message:", error);
+            }
           }
         }
-      });
+      );
 
       socket.on(
         "sendPrivateMessage",
-        async ({ message, roomId }: { message: Message; roomId: string }) => {
+        async ({ message, roomId }: { message: Message; roomId: ObjectId }) => {
           if (io) {
             // Remember to store message in the database through my API
             try {
@@ -130,7 +150,10 @@ export const initSocketServer = (server: any) => {
               );
               const savedMessage = res.data;
               //Emit message to the room
-              io.to(roomId).emit("receivePrivateMessage", savedMessage);
+              io.to(message.receiver.toString()).emit(
+                "receivePrivateMessage",
+                savedMessage
+              );
               // Send notification if recipient is not in the room
               if (
                 message.receiver &&
@@ -163,19 +186,13 @@ export const initSocketServer = (server: any) => {
 
       socket.on(
         "sendGroupMessage",
-        async ({
-          message,
-          groupId,
-        }: {
-          message: GroupChatMessage;
-          groupId: string;
-        }) => {
+        async ({ message }: { message: GroupChatMessage }) => {
           if (io) {
             try {
               const res = await axios.post(
                 "http://localhost:3000/api/messages/group/add-message-to-group",
                 {
-                  groupId,
+                  groupId: message.groupId,
                   text: message.text,
                 },
                 {
@@ -188,7 +205,10 @@ export const initSocketServer = (server: any) => {
               if (res.status === 200 && res.data.newMessage) {
                 const newMessage = res.data.newMessage;
 
-                io.to(groupId).emit("receiveGroupMessage", newMessage);
+                io.to(message.groupId.toString()).emit(
+                  "receiveGroupMessage",
+                  newMessage
+                );
               } else {
                 console.error("Failed to send message:", res.data.message);
                 socket.emit("error", { message: "Failed to send message" });
@@ -240,6 +260,26 @@ export const initSocketServer = (server: any) => {
             userId: socket.userId,
             status: "offline",
           });
+        }
+      });
+      // Check if token is in the blacklis
+
+      // Check and handle token expiration/disconnection
+      socket.on("authenticate", (token: string) => {
+        try {
+          const user = jwt.verify(token, JWT_SECRET);
+          if (user && typeof user !== "string" && "userId" in user) {
+            // Proceed with user authentication process...
+            socket.userId = user.userId;
+            onlineUsers.set(user.userId, socket.id);
+            io?.emit("userStatusChanged", {
+              userId: socket.userId,
+              status: "online",
+            });
+          }
+        } catch (error) {
+          console.error("Error verifying token:", error);
+          socket.disconnect(); // Disconnect user if the token verification fails
         }
       });
     });
