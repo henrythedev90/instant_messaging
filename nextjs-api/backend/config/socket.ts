@@ -1,5 +1,7 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { Message, GroupChatMessage } from "../types/types";
+import { useAuth } from "../hooks/AuthContext";
+import axios from "axios";
 
 interface UserSocket extends Socket {
   userId?: string;
@@ -10,6 +12,7 @@ const onlineUsers = new Map<string, string>(); // userId, socketId
 let io: SocketIOServer | null = null;
 
 export const initSocketServer = (server: any) => {
+  let { token } = useAuth();
   if (!io) {
     io = new SocketIOServer(server, {
       cors: {
@@ -32,39 +35,126 @@ export const initSocketServer = (server: any) => {
         socket.emit("onlineUsers", onlineUsersList);
       });
       //Private chat room handling
-      socket.on("joinPrivateRoom", (roomId: string) => {
-        socket.join(roomId);
-        console.log(`User ${socket.id} joined private room: ${roomId}`);
+      socket.on("joinPrivateRoom", async (roomId: string) => {
+        try {
+          const res = await axios.get("http://localhost:3000/api/contacts", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          const contacts = res.data.contacts;
+
+          const isContact = contacts.some(
+            (contact: { contactId: string }) =>
+              contact.contactId.toString() === roomId
+          );
+          if (!isContact) {
+            console.log(
+              `Access denied: Room ${roomId} is not in user's contacts.`
+            );
+            socket.emit("error", {
+              message: "You can only join rooms with your contacts.",
+            });
+            return;
+          }
+          socket.join(roomId);
+          console.log(`User ${socket.id} joined private room: ${roomId}`);
+          const conversationResponse = await axios.get(
+            `http://localhost:3000/api/messages/conversation?receiverId=${roomId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          const conversation = conversationResponse.data.conversation;
+          socket.emit("conversationHistory", conversation);
+        } catch (error) {
+          if (axios.isAxiosError(error)) {
+            console.error(
+              "Error saving message:",
+              error.response?.data || error.message
+            );
+          } else {
+            console.error("Unexpected error saving message:", error);
+          }
+        }
       });
 
       //Group chat room handling
-      socket.on("joinGroupRoom", (groupId: string) => {
-        socket.join(groupId);
-        console.log(`User ${socket.id} joined group room: ${groupId}`);
+      socket.on("joinGroupRoom", async (groupId: string) => {
+        try {
+          const res = await axios.get(
+            `http://localhost:3000/api/messages/group/fetch-all-messages?groupId=${groupId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          const groupsData = res.data.groups;
+
+          if (!groupsData) {
+            console.log(`Group ${groupId} not found or no messages available.`);
+            socket.emit("groupConversationHistory", []);
+            return;
+          }
+          socket.join(groupId);
+          console.log(`User ${socket.id} joined group room: ${groupId}`);
+          socket.emit("groupConversationHistory", groupsData.messages || []);
+        } catch (error) {
+          if (axios.isAxiosError(error)) {
+            console.error(
+              "Error saving message:",
+              error.response?.data || error.message
+            );
+          } else {
+            console.error("Unexpected error saving message:", error);
+          }
+        }
       });
 
       socket.on(
         "sendPrivateMessage",
-        ({ message, roomId }: { message: Message; roomId: string }) => {
+        async ({ message, roomId }: { message: Message; roomId: string }) => {
           if (io) {
-            //Remember to store message in the database through my API
-
-            //Emit message to the room
-            io.to(roomId).emit("receivePrivateMessage", message);
-            // Send notification if recipient is not in the room
-            if (
-              message.receiver &&
-              socket.userId !== message.receiver.toString()
-            ) {
-              const recipientSocketId = onlineUsers.get(
-                message.receiver.toString()
+            // Remember to store message in the database through my API
+            try {
+              const res = await axios.post(
+                "http://localhost:3000/api/messages/send",
+                {
+                  sender: socket.userId,
+                  receiver: message.receiver,
+                  content: message.content,
+                  timestamp: new Date(),
+                }
               );
-              if (recipientSocketId) {
-                io.to(recipientSocketId).emit("newMessageNotification", {
-                  senderId: socket.userId,
-                  type: "private",
-                  message: message.content,
-                });
+              const savedMessage = res.data;
+              //Emit message to the room
+              io.to(roomId).emit("receivePrivateMessage", savedMessage);
+              // Send notification if recipient is not in the room
+              if (
+                message.receiver &&
+                socket.userId !== message.receiver.toString()
+              ) {
+                const recipientSocketId = onlineUsers.get(
+                  message.receiver.toString()
+                );
+                if (recipientSocketId) {
+                  io.to(recipientSocketId).emit("newMessageNotification", {
+                    senderId: socket.userId,
+                    type: "private",
+                    message: message.content,
+                  });
+                }
+              }
+            } catch (error) {
+              if (axios.isAxiosError(error)) {
+                console.error(
+                  "Error saving message:",
+                  error.response?.data || error.message
+                );
+              } else {
+                console.error("Unexpected error saving message:", error);
               }
             }
           }
@@ -73,7 +163,7 @@ export const initSocketServer = (server: any) => {
 
       socket.on(
         "sendGroupMessage",
-        ({
+        async ({
           message,
           groupId,
         }: {
@@ -81,7 +171,38 @@ export const initSocketServer = (server: any) => {
           groupId: string;
         }) => {
           if (io) {
-            io.to(groupId).emit("receiveGroupMessage", message);
+            try {
+              const res = await axios.post(
+                "http://localhost:3000/api/messages/group/add-message-to-group",
+                {
+                  groupId,
+                  text: message.text,
+                },
+                {
+                  headers: {
+                    Authorization: `Bearer ${token}`, // Ensure token is passed for authentication
+                  },
+                }
+              );
+
+              if (res.status === 200 && res.data.newMessage) {
+                const newMessage = res.data.newMessage;
+
+                io.to(groupId).emit("receiveGroupMessage", newMessage);
+              } else {
+                console.error("Failed to send message:", res.data.message);
+                socket.emit("error", { message: "Failed to send message" });
+              }
+            } catch (error) {
+              if (axios.isAxiosError(error)) {
+                console.error(
+                  "Error saving message:",
+                  error.response?.data || error.message
+                );
+              } else {
+                console.error("Unexpected error saving message:", error);
+              }
+            }
           }
         }
       );

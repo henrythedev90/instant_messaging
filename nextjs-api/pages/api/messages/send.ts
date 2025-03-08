@@ -66,7 +66,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       receiver: new ObjectId(receiverContent?.contactId as string),
       content: content,
       timestamp: new Date(),
-      status: "delivered",
+      read: false,
     };
 
     await db.collection("messages").insertOne(message);

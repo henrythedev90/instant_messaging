@@ -6,7 +6,7 @@ import AddContact from "../../../backend/components/Contact/AddContact";
 import LogOut from "../../../backend/components/LogOut/LogOut";
 import { useRouter } from "next/navigation";
 
-export default function ChatRoomContent({ user }: { user: ImUser }) {
+export default function Dashboard({ user }: { user: ImUser }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 

@@ -1,7 +1,7 @@
 import { authenticate } from "../../../backend/middleware/authenticate";
 import clientPromise from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { ImUser, Contact } from "../../../backend/types/types";
+// import { ImUser, Contact } from "../../../backend/types/types";
 import { NextApiResponse } from "next";
 import { NextApiRequest } from "next";
 

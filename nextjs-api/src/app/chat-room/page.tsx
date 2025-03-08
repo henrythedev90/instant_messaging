@@ -4,7 +4,7 @@ import ProtectedRoute from "../../../backend/components/auth/ProtectedRoute";
 import axios from "axios";
 import { useAuth } from "../../../backend/hooks/AuthContext";
 import { ImUser } from "../../../backend/types/types";
-import ChatRoomContent from "./ChatRoomContent";
+import Dashboard from "./Dashboard";
 import { ContactsProvider } from "../../../backend/context/ContactProvider";
 export default function ChatRoom() {
   const [users, setUsers] = useState<{ user: ImUser } | null>(null);
@@ -42,7 +42,7 @@ export default function ChatRoom() {
   return (
     <ProtectedRoute>
       <ContactsProvider>
-        {users && <ChatRoomContent user={users.user} />}
+        {users && <Dashboard user={users.user} />}
       </ContactsProvider>
     </ProtectedRoute>
   );

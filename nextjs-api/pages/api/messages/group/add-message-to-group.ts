@@ -49,7 +49,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       senderId: new ObjectId(userId as string),
       text: text,
       timestamp: new Date(),
-      status: "delivered",
+      readBy: [],
     };
 
     await db.collection("groupChatsMessages").insertOne(newMessage);
