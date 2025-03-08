@@ -65,5 +65,11 @@ export interface LastMessage {
 }
 
 export interface OnlineUsers {
-  users: string[];
+  users: OnlineUser[];
+}
+
+export interface OnlineUser {
+  userId: string;
+  username?: string; // Optional for improved readability in the UI
+  status: "online" | "offline" | "away"; // More precise status tracking
 }
