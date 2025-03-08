@@ -71,5 +71,5 @@ export interface OnlineUsers {
 export interface OnlineUser {
   userId: string;
   username?: string; // Optional for improved readability in the UI
-  status: "online" | "offline" | "away"; // More precise status tracking
+  status: string; // More precise status tracking
 }

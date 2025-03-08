@@ -1,0 +1,6 @@
+  // ... existing code ...
+        .updateOne(
+          { userId: new ObjectId(userId as string) },
+          { $push: { contacts: newContactEntry } } as any
+        );
+  // ... existing code ...

@@ -8,7 +8,7 @@ interface AuthContextType {
   setToken: (token: string | null) => void;
   logout: () => void;
   login: (newToken: string, userId: string) => void;
-  isLogginOut: boolean;
+  isLoggingOut: boolean;
   refreshToken: () => Promise<string | null>;
   refreshTokenString: string | null;
   userId: string | null;
@@ -20,11 +20,17 @@ export const AuthContext = createContext<AuthContextType | undefined>(
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [user, setUser] = useState("");
+
   const router = useRouter();
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("token");
+    }
+    return null;
+  });
+  const [userId, setUserId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("userId");
     }
     return null;
   });
@@ -39,8 +45,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
+    const storedId = localStorage.getItem("userId");
     if (storedToken) {
       setToken(storedToken);
+    }
+    if (storedId) {
+      setUserId(storedId);
     }
   }, []);
 
@@ -61,12 +71,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (newToken: string, userId: string) => {
+  const login = async (newToken: string, newUserId: string) => {
     try {
       localStorage.setItem("token", newToken);
-      localStorage.setItem("userId", userId);
+      localStorage.setItem("userId", newUserId);
       setToken(newToken);
-      setUser(userId);
+      setUserId(newUserId);
       router.push(`/chat-room`);
     } catch (error) {
       console.error("Error logging in:", error);
@@ -82,10 +92,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         },
       });
       setToken(null);
+      setUserId(null);
       setRefreshTokenString(null);
       setIsLoggingOut(true);
       localStorage.removeItem("token");
       localStorage.removeItem("refreshToken");
+      localStorage.removeItem("userId");
       router.push("/login");
     } catch (error) {
       console.error("Error logging out:", error);
@@ -99,8 +111,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setToken,
         logout,
         login,
-        userId: user,
-        isLogginOut: isLoggingOut,
+        userId,
+        isLoggingOut,
         refreshToken,
         refreshTokenString,
       }}

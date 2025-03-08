@@ -2,16 +2,18 @@ import { io } from "socket.io-client";
 
 // Function to retrieve the authentication token from localStorage
 const getAuthToken = (): string | null => {
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && window.localStorage) {
     return localStorage.getItem("token"); // Retrieve token from localStorage
   }
   return null; // Return null if running on the server
 };
 
+const token = getAuthToken();
+
 // Create socket connection with authentication token and reconnection options
 const socket = io("http://localhost:3000", {
   auth: {
-    token: getAuthToken(), // Pass token in the auth object
+    token: token, // Pass token in the auth object
   },
   reconnection: true, // Enable reconnection on disconnection
   transports: ["websocket"], // Use WebSocket transport for real-time communication

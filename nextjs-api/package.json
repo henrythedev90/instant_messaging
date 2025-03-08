@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "dev:socket": "NODE_OPTIONS='--loader ts-node/esm --trace-warnings --no-warnings' ts-node server.ts",
+    "dev:socket": "ts-node --project tsconfig.json server.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useAuth } from "../../../backend/hooks/AuthContext";
 import { useRouter } from "next/navigation";
+import { io, Socket } from "socket.io-client";
 import axios from "axios";
 
 export default function LoginPage() {
@@ -27,21 +28,60 @@ export default function LoginPage() {
       const token = localStorage.getItem("token");
       const headers = {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        Authorization: token ? `Bearer ${token}` : "",
       };
+
       const isEmail = values.identifier.includes("@");
       const payload = {
         password: values.password,
         [isEmail ? "email" : "username"]: values.identifier,
       };
-      await axios.post("/api/login", payload, { headers }).then((res) => {
-        const { token, userId } = res.data;
-        localStorage.setItem("token", token);
-        login(token, userId);
+
+      const response = await axios.post("/api/login", payload, { headers });
+      const { token: responseToken, userId } = response.data;
+
+      if (responseToken && userId) {
+        // Store the token in localStorage
+        localStorage.setItem("token", responseToken);
+
+        // Initialize Socket.IO connection with auth token
+        const socket: Socket = io("http://localhost:3000", {
+          auth: {
+            token: responseToken,
+          },
+          transports: ["websocket", "polling"],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+        });
+
+        // Set up socket event listeners
+        socket.on("connect", () => {
+          console.log("Socket connected successfully with ID:", socket.id);
+
+          // Emit user authenticated event after connection
+          socket.emit("userAuthenticated", { userId });
+        });
+
+        socket.on("connect_error", (err) => {
+          console.error("Socket connection error:", err.message);
+          setError(`Socket connection error: ${err.message}`);
+        });
+
+        // Call login function from auth context
+        login(responseToken, userId);
+
+        // Navigate to chat room after successful login
         router.push("/chat-room");
-      });
+      } else {
+        setError("Login response missing token or userId");
+        console.error("Login response missing token or userId");
+      }
     } catch (err) {
-      setError((err as Error).message);
+      console.error("Login error:", err);
+      setError(
+        err instanceof Error ? err.message : "An error occurred during login"
+      );
     } finally {
       setLoading(false);
     }
@@ -73,13 +113,13 @@ export default function LoginPage() {
         </button>
       </form>
       <div>
-        <p>new to site</p>
+        <p>New to site?</p>
         <button
           onClick={() => {
             router.push("/signup");
           }}
         >
-          Signed Up
+          Sign Up
         </button>
       </div>
     </div>

@@ -56,6 +56,7 @@ export default async function handler(
       timestamp: Date.now().toString(),
       token,
       refreshToken,
+      userId: user._id.toString(),
     });
   } catch (error) {
     console.error("Error logging in:", error);

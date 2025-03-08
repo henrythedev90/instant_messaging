@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { DecodedToken } from "../types/types";
 
 let blacklistedTokens = new Set<string>();
+
 export function authenticate(
   handler: (req: NextApiRequest, res: NextApiResponse) => void
 ) {
@@ -70,25 +71,40 @@ const io = new Server(server, {
   },
 });
 
-io.use((socket: any, next: any) => {
-  console.log("Socket:", socket); // Log the handshake object
-  const token = socket.handshake.auth.token; // Retrieve token from handshake auth object
+// Define the interface for the decoded token
+interface SocketDecodedToken extends jwt.JwtPayload {
+  id?: string; // Common field name for user ID
+  userId?: string; // Alternative field name for user ID
+  sub?: string; // Standard JWT subject field that might contain user ID
+}
 
-  if (token) {
-    // Validate the token (e.g., using JWT or another method)
-    // If token is valid, allow connection
-    try {
-      const JWT_SECRET = process.env.JWT_SECRET; // Ensure JWT_SECRET is defined
-      if (!JWT_SECRET) {
-        return next(new Error("JWT_SECRET is not defined"));
-      }
-      const user = jwt.verify(token, JWT_SECRET) as { userId: string }; // Validate JWT with the secret and assert type
-      socket.userId = user.userId; // Add user information to socket
-      next(); // Proceed with the connection
-    } catch (err) {
-      return next(new Error("Authentication error"));
+io.use((socket: any, next: any) => {
+  const token = socket.handshake.auth.token; // Retrieve token from handshake auth object
+  if (!token) {
+    return next(new Error("Authentication token is required"));
+  }
+
+  try {
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      return next(new Error("JWT_SECRET is not defined"));
     }
-  } else {
+
+    // Verify and decode the token
+    const decoded = jwt.verify(token, JWT_SECRET) as SocketDecodedToken;
+
+    // Try to find the user ID from various possible fields in the token
+    const userId = decoded.userId || decoded.id || decoded.sub;
+
+    if (!userId) {
+      return next(new Error("User ID not found in token"));
+    }
+
+    // Attach user ID to the socket for later use
+    socket.userId = userId;
+    return next();
+  } catch (err) {
+    console.error("Socket authentication error:", err);
     return next(new Error("Authentication error"));
   }
 });
@@ -97,3 +113,6 @@ io.on("connection", (socket: any) => {
   console.log("User connected with ID:", socket.userId);
   // Handle other events...
 });
+
+// Export the io instance if needed elsewhere
+export { io, server };
