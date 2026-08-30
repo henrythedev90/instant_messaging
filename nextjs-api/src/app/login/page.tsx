@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useAuth } from "../../../backend/hooks/AuthContext";
 import { useRouter } from "next/navigation";
-import { io, Socket } from "socket.io-client";
 import axios from "axios";
 
 export default function LoginPage() {
@@ -41,38 +40,7 @@ export default function LoginPage() {
       const { token: responseToken, userId } = response.data;
 
       if (responseToken && userId) {
-        // Store the token in localStorage
-        localStorage.setItem("token", responseToken);
-
-        // Initialize Socket.IO connection with auth token
-        const socket: Socket = io("http://localhost:3000", {
-          auth: {
-            token: responseToken,
-          },
-          transports: ["websocket", "polling"],
-          reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000,
-        });
-
-        // Set up socket event listeners
-        socket.on("connect", () => {
-          console.log("Socket connected successfully with ID:", socket.id);
-
-          // Emit user authenticated event after connection
-          socket.emit("userAuthenticated", { userId });
-        });
-
-        socket.on("connect_error", (err) => {
-          console.error("Socket connection error:", err.message);
-          setError(`Socket connection error: ${err.message}`);
-        });
-
-        // Call login function from auth context
-        login(responseToken, userId);
-
-        // Navigate to chat room after successful login
-        router.push("/chat-room");
+        await login(responseToken, userId);
       } else {
         setError("Login response missing token or userId");
         console.error("Login response missing token or userId");

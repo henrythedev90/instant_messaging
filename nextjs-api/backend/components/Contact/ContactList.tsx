@@ -5,8 +5,6 @@ import { useAuth } from "../../hooks/AuthContext";
 import { useSocket } from "../../hooks/useSocket";
 import { Contact } from "../../types/types";
 
-const SOCKET_SERVER_URL = "http://localhost:3001";
-
 export default function ContactList() {
   const [isLoading, setIsLoading] = useState(true);
   const { contacts, setContacts } = useContacts();

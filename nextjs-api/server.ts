@@ -1,13 +1,10 @@
-import express from "express";
+import "./backend/utils/loadEnv";
 import { createServer } from "http";
-import { initSocketServer } from "./backend/config/socket"; // This imports the socket setup
+import { initSocketServer } from "./backend/config/socket";
 
-const app = express();
-const server = createServer(app); // Create the HTTP server
+const server = createServer();
+const host = Number(process.env.SOCKET_PORT || 3001);
 
-const host = 3001;
-
-// Initialize the socket server and pass the HTTP server instance
 initSocketServer(server);
 
 server.listen(host, () => {

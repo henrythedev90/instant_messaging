@@ -8,120 +8,135 @@ interface UserSocket extends Socket {
   userId?: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET as string;
+interface TokenPayload {
+  userId?: string;
+}
 
-// Map to store user connections (userId -> socket)
 const userSockets = new Map<string, Socket>();
-const onlineUsers = new Map<string, string>(); // userId, userId (consistent identifier)
+const onlineUsers = new Map<string, string>();
 
 let io: SocketIOServer | null = null;
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is not defined");
+  }
+  return secret;
+}
+
+function getUserIdFromToken(token: string): string | null {
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    if (decoded && typeof decoded !== "string" && "userId" in decoded) {
+      return String((decoded as TokenPayload).userId);
+    }
+  } catch (error) {
+    console.error("Error verifying token:", error);
+  }
+  return null;
+}
+
+function getOnlineUsersList() {
+  return Array.from(onlineUsers.keys()).map((id) => ({
+    userId: id,
+    status: "online" as const,
+  }));
+}
+
+function markUserOnline(socket: UserSocket, userId: string) {
+  const existingSocket = userSockets.get(userId);
+  if (existingSocket && existingSocket !== socket && existingSocket.connected) {
+    existingSocket.disconnect();
+  }
+
+  socket.userId = userId;
+  userSockets.set(userId, socket);
+  onlineUsers.set(userId, userId);
+  console.log(`User connected: ${userId}`);
+
+  io?.emit("userStatusChanged", { userId, status: "online" });
+  io?.emit("onlineUsers", getOnlineUsersList());
+}
 
 export const initSocketServer = (server: any) => {
   if (!io) {
     io = new SocketIOServer(server, {
       cors: {
-        origin: "http://localhost:3000",
+        origin: [
+          "http://localhost:3000",
+          "http://127.0.0.1:3000",
+        ],
         methods: ["GET", "POST"],
+        credentials: true,
       },
     });
 
+    io.use((socket: UserSocket, next) => {
+      const token = socket.handshake.auth?.token as string | undefined;
+      if (!token) {
+        return next();
+      }
+
+      const userId = getUserIdFromToken(token);
+      if (!userId) {
+        return next(new Error("Authentication error"));
+      }
+
+      socket.userId = userId;
+      next();
+    });
+
     io.on("connection", (socket: UserSocket) => {
-      // Don't log connection with auto-generated ID
-      // Just wait for authentication before logging
+      if (socket.userId) {
+        markUserOnline(socket, socket.userId);
+      }
 
-      // Handle authentication - this should be the first event from client
       socket.on("authenticate", (token: string) => {
-        try {
-          // Verifying the token passed from the client
-          const user = jwt.verify(token, JWT_SECRET);
-          if (user && typeof user !== "string" && "userId" in user) {
-            const userId = user.userId;
-
-            // If this user already has a socket connection, disconnect it
-            if (userSockets.has(userId)) {
-              const existingSocket = userSockets.get(userId);
-              if (existingSocket && existingSocket.connected) {
-                // Don't log disconnection, just silently replace
-                existingSocket.disconnect();
-              }
-            }
-
-            // Set userId in socket object
-            socket.userId = userId;
-
-            // Store the new socket with userId as key
-            userSockets.set(userId, socket);
-            onlineUsers.set(userId, userId); // Use userId as consistent identifier
-
-            // Only log once authenticated with userId
-            console.log(`User connected: ${userId}`);
-
-            // Broadcast user online status
-            socket.emit("userStatusChanged", {
-              userId: userId,
-              status: "online",
-            });
-
-            // Send current online users list
-            socket.emit(
-              "onlineUsers",
-              Array.from(onlineUsers.keys()).map((id) => ({
-                userId: id,
-                status: "online",
-              }))
-            );
-          }
-        } catch (error) {
-          console.error("Error verifying token:", error);
-          socket.disconnect(); // Disconnect user if the token verification fails
+        const userId = getUserIdFromToken(token);
+        if (!userId) {
+          socket.disconnect();
+          return;
         }
+        markUserOnline(socket, userId);
       });
 
-      //Handle user authentication and online status - alternative method
-      socket.on("userAuthenticated", (userId: string, token: string) => {
-        try {
-          const decodedUser = jwt.verify(token, JWT_SECRET);
-          if (
-            decodedUser &&
-            typeof decodedUser !== "string" &&
-            "userId" in decodedUser
-          ) {
-            // If this user already has a socket connection, disconnect it silently
-            if (userSockets.has(userId)) {
-              const existingSocket = userSockets.get(userId);
-              if (existingSocket && existingSocket.connected) {
-                existingSocket.disconnect();
-              }
-            }
+      socket.on("userAuthenticated", (userIdOrPayload: unknown, token?: string) => {
+        const tokenToVerify =
+          token ||
+          (typeof userIdOrPayload === "object" &&
+          userIdOrPayload &&
+          "token" in userIdOrPayload
+            ? String((userIdOrPayload as { token?: string }).token)
+            : undefined) ||
+          (socket.handshake.auth?.token as string | undefined);
 
-            socket.userId = userId;
-            userSockets.set(userId, socket);
-            onlineUsers.set(userId, userId); // Use userId as consistent identifier
+        const userIdFromToken = tokenToVerify
+          ? getUserIdFromToken(tokenToVerify)
+          : null;
+        const requestedUserId =
+          typeof userIdOrPayload === "string"
+            ? userIdOrPayload
+            : userIdOrPayload &&
+                typeof userIdOrPayload === "object" &&
+                "userId" in userIdOrPayload
+              ? String((userIdOrPayload as { userId?: string }).userId)
+              : undefined;
 
-            // Only log once authenticated with userId
-            console.log(`User connected: ${userId}`);
-
-            io?.emit("userStatusChanged", { userId, status: "online" });
-
-            // Send the current online users list to the newly connected user
-            const onlineUsersList = Array.from(onlineUsers.keys()).map(
-              (id) => ({
-                userId: id,
-                status: "online",
-              })
-            );
-            socket.emit("onlineUsers", onlineUsersList);
-          }
-        } catch (error) {
-          console.error("Token verification failed:", error);
+        if (
+          !userIdFromToken ||
+          (requestedUserId && userIdFromToken !== requestedUserId)
+        ) {
           socket.emit("error", {
             message: "Invalid token. Please log in again.",
           });
           socket.disconnect();
+          return;
         }
+
+        markUserOnline(socket, userIdFromToken);
       });
 
-      //Private chat room handling
       socket.on("joinPrivateRoom", async (roomId: string, token: string) => {
         if (!socket.userId) {
           socket.emit("error", {
@@ -175,7 +190,6 @@ export const initSocketServer = (server: any) => {
         }
       });
 
-      //Group chat room handling
       socket.on(
         "joinGroupRoom",
         async ({ group, token }: { group: GroupChat; token: string }) => {
@@ -256,13 +270,11 @@ export const initSocketServer = (server: any) => {
               );
               const savedMessage = res.data;
 
-              // Emit message to the room
               io.to(message.receiver.toString()).emit(
                 "receivePrivateMessage",
                 savedMessage
               );
 
-              // Send notification if recipient is not in the room
               if (
                 message.receiver &&
                 socket.userId !== message.receiver.toString()
@@ -374,44 +386,27 @@ export const initSocketServer = (server: any) => {
       );
 
       socket.on("disconnect", () => {
-        // Check if socket has a userId (was authenticated)
         const userId = socket.userId;
         if (userId) {
           console.log(`User ${userId} disconnected`);
 
-          // When page refresh happens, don't immediately remove from online users
-          // Instead, set a timeout to give them a chance to reconnect
-          setTimeout(() => {
-            // Check if the user has reconnected (would have a different socket but same userId)
-            const userStillConnected = userSockets.has(userId);
-
-            if (!userStillConnected) {
-              // Only now mark them as offline if they haven't reconnected
-              onlineUsers.delete(userId);
-
-              // Broadcast user offline status
-              io?.emit("userStatusChanged", {
-                userId: userId,
-                status: "offline",
-              });
-
-              // Update online users list
-              io?.emit(
-                "onlineUsers",
-                Array.from(onlineUsers.keys()).map((id) => ({
-                  userId: id,
-                  status: "online",
-                }))
-              );
-            }
-          }, 5000); // 5 second grace period for reconnection
-
-          // Remove this specific socket from userSockets map
           if (userSockets.get(userId) === socket) {
             userSockets.delete(userId);
           }
+
+          setTimeout(() => {
+            const userStillConnected = userSockets.has(userId);
+
+            if (!userStillConnected) {
+              onlineUsers.delete(userId);
+              io?.emit("userStatusChanged", {
+                userId,
+                status: "offline",
+              });
+              io?.emit("onlineUsers", getOnlineUsersList());
+            }
+          }, 5000);
         }
-        // Don't log disconnections for unauthenticated sockets
       });
     });
   }
@@ -426,7 +421,6 @@ export const getSocketServer = () => {
   return io;
 };
 
-// Helper function to get a user's socket by userId
 export const getUserSocket = (userId: string): Socket | undefined => {
   return userSockets.get(userId);
 };

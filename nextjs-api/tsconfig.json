@@ -7,15 +7,13 @@
     ],
     "allowJs": true,
     "noEmit": true,
-    "moduleResolution": "node",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
     "target": "ESNext",
-    "module": "CommonJS",
-    "outDir": "./dist",
-    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -33,10 +31,10 @@
   },
   "include": [
     "next-env.d.ts",
+    "global.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "server.ts"
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

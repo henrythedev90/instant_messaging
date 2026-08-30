@@ -9,7 +9,7 @@ export default function ProtectedRoute({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { token, logout, isLogginOut } = useAuth();
+  const { token, logout, isLoggingOut } = useAuth();
 
   useEffect(() => {
     const handleLogout = () => {
@@ -24,7 +24,13 @@ export default function ProtectedRoute({
     };
   }, [router, logout]);
 
-  if (!token && !isLogginOut) {
+  useEffect(() => {
+    if (!token && !isLoggingOut) {
+      router.push("/login");
+    }
+  }, [token, isLoggingOut, router]);
+
+  if (!token && !isLoggingOut) {
     return null;
   }
   return <>{children}</>;

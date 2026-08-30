@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "dev:socket": "ts-node --project tsconfig.json server.ts",
+    "dev:socket": "ts-node --project tsconfig.server.json server.ts",
+    "dev:all": "sh -c 'npm run dev & npm run dev:socket & wait'",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
