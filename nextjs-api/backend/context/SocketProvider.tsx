@@ -1,6 +1,7 @@
 "use client";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -24,6 +25,17 @@ import { serializeGroup, serializeGroupMessage } from "../utils/groups";
 const SOCKET_SERVER_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
 
+export interface MessageAlert {
+  threadKey: string;
+  title: string;
+  preview: string;
+}
+
+export interface TypingUser {
+  userId: string;
+  username: string;
+}
+
 interface SocketContextValue {
   socket: Socket | null;
   connected: boolean;
@@ -33,9 +45,14 @@ interface SocketContextValue {
   groups: GroupChat[];
   incomingRequests: MessageRequest[];
   requestOutcomes: Record<string, MessageRequestStatus>;
+  unreadByThread: Record<string, number>;
+  messageAlert: MessageAlert | null;
+  typingByThread: Record<string, TypingUser[]>;
   addPrivateMessage: (message: Message) => void;
   addGroupMessage: (message: GroupChatMessage) => void;
   addGroup: (group: GroupChat) => void;
+  setActiveThread: (threadKey: string | null) => void;
+  dismissAlert: () => void;
   setRequestOutcome: (userId: string, status: MessageRequestStatus) => void;
   removeIncomingRequest: (requestId: string) => void;
 }
@@ -54,7 +71,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [requestOutcomes, setRequestOutcomes] = useState<
     Record<string, MessageRequestStatus>
   >({});
+  const [unreadByThread, setUnreadByThread] = useState<Record<string, number>>(
+    {}
+  );
+  const [messageAlert, setMessageAlert] = useState<MessageAlert | null>(null);
+  const [typingByThread, setTypingByThread] = useState<
+    Record<string, TypingUser[]>
+  >({});
   const socketRef = useRef<Socket | null>(null);
+  const activeThreadRef = useRef<string | null>(null);
+  const knownMessageIds = useRef(new Set<string>());
+  const groupsRef = useRef<GroupChat[]>([]);
+  const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  groupsRef.current = groups;
 
   useEffect(() => {
     if (!userId || !token) {
@@ -67,6 +96,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setRequestOutcomes({});
       setGroups([]);
       setGroupMessages([]);
+      setUnreadByThread({});
+      setMessageAlert(null);
+      setTypingByThread({});
+      knownMessageIds.current = new Set();
+      activeThreadRef.current = null;
       return;
     }
 
@@ -143,6 +177,46 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on("onlineUsers", handleOnlineUsers);
     newSocket.on("userStatusChanged", handleUserStatusChange);
+    const rememberId = (id: string) => {
+      if (knownMessageIds.current.has(id)) {
+        return false;
+      }
+      knownMessageIds.current.add(id);
+      return true;
+    };
+
+    const clearTyper = (threadKey: string, typerId: string) => {
+      const timerKey = `${threadKey}:${typerId}`;
+      if (typingTimers.current[timerKey]) {
+        clearTimeout(typingTimers.current[timerKey]);
+        delete typingTimers.current[timerKey];
+      }
+      setTypingByThread((prev) => {
+        const current = prev[threadKey] || [];
+        const next = current.filter((item) => asId(item.userId) !== typerId);
+        if (next.length === current.length) {
+          return prev;
+        }
+        if (next.length === 0) {
+          const copy = { ...prev };
+          delete copy[threadKey];
+          return copy;
+        }
+        return { ...prev, [threadKey]: next };
+      });
+    };
+
+    const raiseAlert = (threadKey: string, title: string, preview: string) => {
+      if (activeThreadRef.current === threadKey) {
+        return;
+      }
+      setUnreadByThread((prev) => ({
+        ...prev,
+        [threadKey]: (prev[threadKey] || 0) + 1,
+      }));
+      setMessageAlert({ threadKey, title, preview });
+    };
+
     newSocket.on("conversationHistory", (messages: Message[]) => {
       if (!Array.isArray(messages)) {
         return;
@@ -153,7 +227,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         );
         for (const item of messages) {
           const normalized = normalizeMessage(item);
-          byId.set(asId(normalized._id), normalized);
+          const id = asId(normalized._id);
+          knownMessageIds.current.add(id);
+          byId.set(id, normalized);
         }
         return Array.from(byId.values()) as Message[];
       });
@@ -161,23 +237,38 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on("receivePrivateMessage", (message: Message) => {
       const incoming = normalizeMessage(message);
-      setPrivateMessages((prev) => {
-        const incomingId = asId(incoming._id);
-        if (prev.some((item) => asId(item._id) === incomingId)) {
-          return prev;
-        }
-        return [...prev, incoming as Message];
-      });
+      const incomingId = asId(incoming._id);
+      if (!rememberId(incomingId)) {
+        return;
+      }
+      setPrivateMessages((prev) => [...prev, incoming as Message]);
+      if (asId(incoming.sender) !== asId(userId)) {
+        clearTyper(`direct:${asId(incoming.sender)}`, asId(incoming.sender));
+        raiseAlert(
+          `direct:${asId(incoming.sender)}`,
+          "New message",
+          String(incoming.content || "")
+        );
+      }
     });
     newSocket.on("receiveGroupMessage", (message: GroupChatMessage) => {
       const incoming = serializeGroupMessage(message);
-      setGroupMessages((prev) => {
-        const incomingId = asId(incoming._id);
-        if (prev.some((item) => asId(item._id) === incomingId)) {
-          return prev;
-        }
-        return [...prev, incoming];
-      });
+      const incomingId = asId(incoming._id);
+      if (!rememberId(incomingId)) {
+        return;
+      }
+      setGroupMessages((prev) => [...prev, incoming]);
+      if (asId(incoming.senderId) !== asId(userId)) {
+        const group = groupsRef.current.find(
+          (item) => asId(item._id) === asId(incoming.groupId)
+        );
+        clearTyper(`group:${asId(incoming.groupId)}`, asId(incoming.senderId));
+        raiseAlert(
+          `group:${asId(incoming.groupId)}`,
+          group?.groupName || "Group",
+          `${incoming.senderUsername}: ${incoming.text}`
+        );
+      }
     });
     newSocket.on("groupConversationHistory", (messages: GroupChatMessage[]) => {
       if (!Array.isArray(messages)) {
@@ -189,7 +280,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         );
         for (const item of messages) {
           const normalized = serializeGroupMessage(item);
-          byId.set(asId(normalized._id), normalized);
+          const id = asId(normalized._id);
+          knownMessageIds.current.add(id);
+          byId.set(id, normalized);
         }
         return Array.from(byId.values());
       });
@@ -207,6 +300,50 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         return [incoming, ...prev];
       });
     });
+    newSocket.on(
+      "userTyping",
+      ({
+        userId: typerId,
+        username,
+        isTyping,
+        threadKey,
+      }: {
+        userId: string;
+        username?: string;
+        isTyping: boolean;
+        threadKey?: string;
+      }) => {
+        const id = asId(typerId);
+        const rawKey = threadKey || "";
+        const key = rawKey.startsWith("direct:")
+          ? `direct:${id}`
+          : rawKey;
+        if (!key || !id || id === asId(userId)) {
+          return;
+        }
+        if (!isTyping) {
+          clearTyper(key, id);
+          return;
+        }
+        setTypingByThread((prev) => {
+          const current = prev[key] || [];
+          if (current.some((item) => asId(item.userId) === id)) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [key]: [...current, { userId: id, username: username || "Someone" }],
+          };
+        });
+        const timerKey = `${key}:${id}`;
+        if (typingTimers.current[timerKey]) {
+          clearTimeout(typingTimers.current[timerKey]);
+        }
+        typingTimers.current[timerKey] = setTimeout(() => {
+          clearTyper(key, id);
+        }, 3000);
+      }
+    );
     newSocket.on("strangerMessageRequest", (request: MessageRequest) => {
       if (!request?._id) {
         return;
@@ -289,8 +426,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const addGroupMessage = (message: GroupChatMessage) => {
     const incoming = serializeGroupMessage(message);
+    const incomingId = asId(incoming._id);
+    if (!knownMessageIds.current.has(incomingId)) {
+      knownMessageIds.current.add(incomingId);
+    }
     setGroupMessages((prev) => {
-      const incomingId = asId(incoming._id);
       if (prev.some((item) => asId(item._id) === incomingId)) {
         return prev;
       }
@@ -311,14 +451,39 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const addPrivateMessage = (message: Message) => {
     const incoming = normalizeMessage(message);
+    const incomingId = asId(incoming._id);
+    if (!knownMessageIds.current.has(incomingId)) {
+      knownMessageIds.current.add(incomingId);
+    }
     setPrivateMessages((prev) => {
-      const incomingId = asId(incoming._id);
       if (prev.some((item) => asId(item._id) === incomingId)) {
         return prev;
       }
       return [...prev, incoming as Message];
     });
   };
+
+  const setActiveThread = useCallback((threadKey: string | null) => {
+    activeThreadRef.current = threadKey;
+    if (!threadKey) {
+      return;
+    }
+    setUnreadByThread((prev) => {
+      if (!prev[threadKey]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[threadKey];
+      return next;
+    });
+    setMessageAlert((current) =>
+      current?.threadKey === threadKey ? null : current
+    );
+  }, []);
+
+  const dismissAlert = useCallback(() => {
+    setMessageAlert(null);
+  }, []);
 
   const setRequestOutcome = (otherUserId: string, status: MessageRequestStatus) => {
     setRequestOutcomes((prev) => ({ ...prev, [asId(otherUserId)]: status }));
@@ -340,9 +505,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       groups,
       incomingRequests,
       requestOutcomes,
+      unreadByThread,
+      messageAlert,
+      typingByThread,
       addPrivateMessage,
       addGroupMessage,
       addGroup,
+      setActiveThread,
+      dismissAlert,
       setRequestOutcome,
       removeIncomingRequest,
     }),
@@ -355,6 +525,9 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       groups,
       incomingRequests,
       requestOutcomes,
+      unreadByThread,
+      messageAlert,
+      typingByThread,
     ]
   );
 

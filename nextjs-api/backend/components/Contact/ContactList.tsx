@@ -5,19 +5,22 @@ import axios from "axios";
 import { useAuth } from "../../hooks/AuthContext";
 import { useSocket } from "../../hooks/useSocket";
 import { Contact } from "../../types/types";
+import { asId } from "../../utils/ids";
 
 export default function ContactList({
   selectedId,
+  unreadByThread,
   onSelect,
 }: {
   selectedId?: string | null;
+  unreadByThread?: Record<string, number>;
   onSelect?: (contact: Contact) => void;
 }) {
   const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
   const { contacts, setContacts } = useContacts();
   const { token, refreshToken } = useAuth();
-  const { onlineUsers, connected } = useSocket();
+  const { onlineUsers, connected, typingByThread } = useSocket();
 
   const fetchContacts = async () => {
     try {
@@ -91,25 +94,33 @@ export default function ContactList({
       {visibleContacts.length > 0 ? (
         <ul className="contact-list">
           {visibleContacts.map((contact: Contact) => {
-            const online = isContactOnline(contact.contactId.toString());
+            const contactId = asId(contact.contactId);
+            const online = isContactOnline(contactId);
+            const unread = unreadByThread?.[`direct:${contactId}`] || 0;
+            const typing = (typingByThread[`direct:${contactId}`] || []).length > 0;
             return (
-              <li key={contact.contactId.toString()}>
+              <li key={contactId}>
                 <button
                   type="button"
                   className={`contact-item ${
-                    selectedId === contact.contactId.toString() ? "active" : ""
-                  }`}
+                    selectedId === contactId ? "active" : ""
+                  } ${unread ? "has-unread" : ""}`}
                   onClick={() => onSelect?.(contact)}
                 >
                   <div className="contact-name">
                     <div className="avatar">
                       {contact.contactUsername.slice(0, 2).toUpperCase()}
+                      {unread > 0 && (
+                        <span className="unread-badge">
+                          {unread > 9 ? "9+" : unread}
+                        </span>
+                      )}
                     </div>
                     <span>{contact.nickname || contact.contactUsername}</span>
                   </div>
                   <div className="status-pill">
-                    <span className={`status-dot ${online ? "on" : ""}`} />
-                    {online ? "Online" : "Offline"}
+                    <span className={`status-dot ${online || typing ? "on" : ""}`} />
+                    {typing ? "Typing..." : online ? "Online" : "Offline"}
                   </div>
                 </button>
               </li>

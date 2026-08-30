@@ -4,7 +4,9 @@ import axios from "axios";
 import { Contact, Message } from "../../types/types";
 import { useAuth } from "../../hooks/AuthContext";
 import { useSocket } from "../../hooks/useSocket";
-import { asId, normalizeMessage } from "../../utils/ids";
+import { asId, normalizeMessage, privateThreadId } from "../../utils/ids";
+import { useTypingEmitter } from "../../hooks/useTypingEmitter";
+import TypingIndicator from "./TypingIndicator";
 
 function messageTime(value: Date | string) {
   const date = new Date(value);
@@ -29,11 +31,23 @@ export default function ChatPane({
     addPrivateMessage,
     requestOutcomes,
     setRequestOutcome,
+    typingByThread,
   } = useSocket();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<Message[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const otherId = contact ? asId(contact.contactId) : "";
+  const threadKey = otherId ? `direct:${otherId}` : "";
+  const roomId = contact && userId ? privateThreadId(userId, contact.contactId) : "";
+  const { start: startTyping, stop: stopTyping } = useTypingEmitter(
+    socket,
+    roomId,
+    userId ? `direct:${asId(userId)}` : ""
+  );
+  const typingNames = (typingByThread[threadKey] || []).map(
+    (item) => item.username || contact?.contactUsername || "Someone"
+  );
 
   useEffect(() => {
     setPending([]);
@@ -66,7 +80,7 @@ export default function ChatPane({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread.length, contact?.contactId]);
+  }, [thread.length, contact?.contactId, typingNames.length]);
 
   useEffect(() => {
     setPending((current) =>
@@ -100,6 +114,7 @@ export default function ChatPane({
     setSending(true);
     setPending((current) => [...current, payload]);
     setDraft("");
+    stopTyping();
 
     try {
       const res = await axios.post(
@@ -171,8 +186,12 @@ export default function ChatPane({
         <div>
           <h2>{contact.nickname || contact.contactUsername}</h2>
           <div className="status-pill">
-            <span className={`status-dot ${online ? "on" : ""}`} />
-            {online ? "Online" : "Offline"}
+            <span className={`status-dot ${online || typingNames.length ? "on" : ""}`} />
+            {typingNames.length
+              ? "Typing..."
+              : online
+                ? "Online"
+                : "Offline"}
           </div>
         </div>
       </header>
@@ -194,6 +213,7 @@ export default function ChatPane({
             );
           })
         )}
+        <TypingIndicator names={typingNames} />
         <div ref={bottomRef} />
       </div>
 
@@ -216,7 +236,14 @@ export default function ChatPane({
               : `Message ${contact.contactUsername}`
           }
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            if (event.target.value.trim()) {
+              startTyping();
+            } else {
+              stopTyping();
+            }
+          }}
           disabled={!connected || denied}
         />
         <button

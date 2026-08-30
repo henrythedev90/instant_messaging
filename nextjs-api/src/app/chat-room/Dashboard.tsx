@@ -7,6 +7,7 @@ import AddContact from "../../../backend/components/Contact/AddContact";
 import ChatPane from "../../../backend/components/Chat/ChatPane";
 import GroupChatPane from "../../../backend/components/Chat/GroupChatPane";
 import NewChatModal from "../../../backend/components/Chat/NewChatModal";
+import MessageAlertToast from "../../../backend/components/Chat/MessageAlertToast";
 import StrangerRequestModal from "../../../backend/components/Chat/StrangerRequestModal";
 import LogOut from "../../../backend/components/LogOut/LogOut";
 import { useRouter } from "next/navigation";
@@ -34,6 +35,10 @@ export default function Dashboard({ user }: { user: ImUser }) {
     removeIncomingRequest,
     groups,
     addGroup,
+    unreadByThread,
+    messageAlert,
+    setActiveThread,
+    dismissAlert,
   } = useSocket();
   const { contacts, setContacts } = useContacts();
   const { token } = useAuth();
@@ -135,6 +140,62 @@ export default function Dashboard({ user }: { user: ImUser }) {
   const selectedContact =
     target?.type === "direct" ? target.contact : null;
   const selectedGroup = target?.type === "group" ? target.group : null;
+
+  useEffect(() => {
+    if (selectedContact) {
+      setActiveThread(`direct:${asId(selectedContact.contactId)}`);
+      return;
+    }
+    if (selectedGroup) {
+      setActiveThread(`group:${asId(selectedGroup._id)}`);
+      return;
+    }
+    setActiveThread(null);
+  }, [selectedContact, selectedGroup, setActiveThread]);
+
+  useEffect(() => {
+    const unreadTotal = Object.values(unreadByThread).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    const baseTitle = "Pulse — Instant Messaging";
+    document.title = unreadTotal > 0 ? `(${unreadTotal}) ${baseTitle}` : baseTitle;
+    return () => {
+      document.title = baseTitle;
+    };
+  }, [unreadByThread]);
+
+  const openAlertThread = () => {
+    if (!messageAlert) {
+      return;
+    }
+    if (messageAlert.threadKey.startsWith("direct:")) {
+      const contactId = messageAlert.threadKey.slice("direct:".length);
+      const contact = contacts.find(
+        (item) => asId(item.contactId) === contactId
+      );
+      if (contact) {
+        setTarget({ type: "direct", contact });
+      }
+    } else if (messageAlert.threadKey.startsWith("group:")) {
+      const groupId = messageAlert.threadKey.slice("group:".length);
+      const group = groups.find((item) => asId(item._id) === groupId);
+      if (group) {
+        setTarget({ type: "group", group });
+      }
+    }
+    dismissAlert();
+  };
+
+  const alertTitle = messageAlert
+    ? messageAlert.threadKey.startsWith("direct:")
+      ? contacts.find(
+          (item) =>
+            asId(item.contactId) ===
+            messageAlert.threadKey.slice("direct:".length)
+        )?.contactUsername || messageAlert.title
+      : messageAlert.title
+    : "";
   const selectedOnline = Boolean(
     selectedContact &&
       onlineUsers.some(
@@ -175,6 +236,7 @@ export default function Dashboard({ user }: { user: ImUser }) {
               selectedId={
                 selectedContact ? asId(selectedContact.contactId) : null
               }
+              unreadByThread={unreadByThread}
               onSelect={(contact) =>
                 setTarget({ type: "direct", contact })
               }
@@ -187,16 +249,24 @@ export default function Dashboard({ user }: { user: ImUser }) {
                     const id = asId(group._id);
                     const active =
                       selectedGroup && asId(selectedGroup._id) === id;
+                    const unread = unreadByThread[`group:${id}`] || 0;
                     return (
                       <li key={id}>
                         <button
                           type="button"
-                          className={`contact-item ${active ? "active" : ""}`}
+                          className={`contact-item ${active ? "active" : ""} ${
+                            unread ? "has-unread" : ""
+                          }`}
                           onClick={() => setTarget({ type: "group", group })}
                         >
                           <div className="contact-name">
                             <div className="avatar">
                               {group.groupName.slice(0, 2).toUpperCase()}
+                              {unread > 0 && (
+                                <span className="unread-badge">
+                                  {unread > 9 ? "9+" : unread}
+                                </span>
+                              )}
                             </div>
                             <span>{group.groupName}</span>
                           </div>
@@ -233,6 +303,14 @@ export default function Dashboard({ user }: { user: ImUser }) {
           error={newChatError}
           onClose={() => setNewChatOpen(false)}
           onStart={startChat}
+        />
+      )}
+      {messageAlert && (
+        <MessageAlertToast
+          title={alertTitle}
+          preview={messageAlert.preview}
+          onOpen={openAlertThread}
+          onDismiss={dismissAlert}
         />
       )}
       {activeRequest && (

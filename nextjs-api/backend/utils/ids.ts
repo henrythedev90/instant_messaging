@@ -1,3 +1,7 @@
+export function privateThreadId(userA: unknown, userB: unknown) {
+  return [asId(userA), asId(userB)].filter(Boolean).sort().join(":");
+}
+
 export function asId(value: unknown): string {
   if (value == null) {
     return "";

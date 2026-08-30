@@ -6,6 +6,8 @@ import { useAuth } from "../../hooks/AuthContext";
 import { useSocket } from "../../hooks/useSocket";
 import { asId } from "../../utils/ids";
 import { serializeGroupMessage } from "../../utils/groups";
+import { useTypingEmitter } from "../../hooks/useTypingEmitter";
+import TypingIndicator from "./TypingIndicator";
 
 function messageTime(value: Date | string) {
   const date = new Date(value);
@@ -17,12 +19,25 @@ function messageTime(value: Date | string) {
 
 export default function GroupChatPane({ group }: { group: GroupChat }) {
   const { userId, token } = useAuth();
-  const { socket, connected, groupMessages, addGroupMessage } = useSocket();
+  const { socket, connected, groupMessages, addGroupMessage, typingByThread } =
+    useSocket();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<GroupChatMessage[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const groupId = asId(group._id);
+  const threadKey = `group:${groupId}`;
+  const { start: startTyping, stop: stopTyping } = useTypingEmitter(
+    socket,
+    groupId,
+    threadKey
+  );
+  const typingNames = (typingByThread[threadKey] || []).map((item) => {
+    const member = group.members.find(
+      (person) => asId(person.userId) === asId(item.userId)
+    );
+    return member?.username || item.username;
+  });
 
   useEffect(() => {
     setPending([]);
@@ -43,7 +58,7 @@ export default function GroupChatPane({ group }: { group: GroupChat }) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread.length, groupId]);
+  }, [thread.length, groupId, typingNames.length]);
 
   useEffect(() => {
     setPending((current) =>
@@ -79,6 +94,7 @@ export default function GroupChatPane({ group }: { group: GroupChat }) {
     setSending(true);
     setPending((current) => [...current, local]);
     setDraft("");
+    stopTyping();
 
     try {
       const res = await axios.post(
@@ -116,7 +132,11 @@ export default function GroupChatPane({ group }: { group: GroupChat }) {
         <div>
           <h2>{group.groupName}</h2>
           <div className="status-pill">
-            {group.members.length} members · {memberLabel}
+            {typingNames.length
+              ? typingNames.length === 1
+                ? `${typingNames[0]} is typing...`
+                : "Several people are typing..."
+              : `${group.members.length} members · ${memberLabel}`}
           </div>
         </div>
       </header>
@@ -141,6 +161,7 @@ export default function GroupChatPane({ group }: { group: GroupChat }) {
             );
           })
         )}
+        <TypingIndicator names={typingNames} />
         <div ref={bottomRef} />
       </div>
 
@@ -149,7 +170,14 @@ export default function GroupChatPane({ group }: { group: GroupChat }) {
           type="text"
           placeholder={`Message ${group.groupName}`}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            if (event.target.value.trim()) {
+              startTyping();
+            } else {
+              stopTyping();
+            }
+          }}
           disabled={!connected}
         />
         <button

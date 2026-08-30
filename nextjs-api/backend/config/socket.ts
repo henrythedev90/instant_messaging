@@ -7,10 +7,12 @@ import { asId, normalizeMessage } from "../utils/ids";
 
 interface UserSocket extends Socket {
   userId?: string;
+  username?: string;
 }
 
 interface TokenPayload {
   userId?: string;
+  username?: string;
 }
 
 const userSockets = new Map<string, Set<Socket>>();
@@ -26,16 +28,24 @@ function getJwtSecret() {
   return secret;
 }
 
-function getUserIdFromToken(token: string): string | null {
+function getUserFromToken(token: string): { userId: string; username?: string } | null {
   try {
     const decoded = jwt.verify(token, getJwtSecret());
     if (decoded && typeof decoded !== "string" && "userId" in decoded) {
-      return String((decoded as TokenPayload).userId);
+      const payload = decoded as TokenPayload;
+      return {
+        userId: String(payload.userId),
+        username: payload.username ? String(payload.username) : undefined,
+      };
     }
   } catch (error) {
     console.error("Error verifying token:", error);
   }
   return null;
+}
+
+function getUserIdFromToken(token: string): string | null {
+  return getUserFromToken(token)?.userId || null;
 }
 
 function getOnlineUsersList() {
@@ -49,8 +59,11 @@ function privateThreadId(userA: string, userB: string) {
   return [String(userA), String(userB)].sort().join(":");
 }
 
-function markUserOnline(socket: UserSocket, userId: string) {
+function markUserOnline(socket: UserSocket, userId: string, username?: string) {
   socket.userId = userId;
+  if (username) {
+    socket.username = username;
+  }
   if (!userSockets.has(userId)) {
     userSockets.set(userId, new Set());
   }
@@ -102,27 +115,28 @@ export const initSocketServer = (server: any) => {
         return next();
       }
 
-      const userId = getUserIdFromToken(token);
-      if (!userId) {
+      const user = getUserFromToken(token);
+      if (!user) {
         return next(new Error("Authentication error"));
       }
 
-      socket.userId = userId;
+      socket.userId = user.userId;
+      socket.username = user.username;
       next();
     });
 
     io.on("connection", (socket: UserSocket) => {
       if (socket.userId) {
-        markUserOnline(socket, socket.userId);
+        markUserOnline(socket, socket.userId, socket.username);
       }
 
       socket.on("authenticate", (token: string) => {
-        const userId = getUserIdFromToken(token);
-        if (!userId) {
+        const user = getUserFromToken(token);
+        if (!user) {
           socket.disconnect();
           return;
         }
-        markUserOnline(socket, userId);
+        markUserOnline(socket, user.userId, user.username);
       });
 
       socket.on("userAuthenticated", (userIdOrPayload: unknown, token?: string) => {
@@ -158,7 +172,11 @@ export const initSocketServer = (server: any) => {
           return;
         }
 
-        markUserOnline(socket, userIdFromToken);
+        markUserOnline(
+          socket,
+          userIdFromToken,
+          tokenToVerify ? getUserFromToken(tokenToVerify)?.username : undefined
+        );
       });
 
       socket.on("joinPrivateRoom", async (roomId: string, token: string) => {
@@ -502,12 +520,38 @@ export const initSocketServer = (server: any) => {
 
       socket.on(
         "typing",
-        ({ roomId, isTyping }: { roomId: string; isTyping: boolean }) => {
-          if (socket.userId) {
-            socket.to(roomId).emit("userTyping", {
-              userId: socket.userId,
-              isTyping,
-            });
+        ({
+          roomId,
+          isTyping,
+          threadKey,
+        }: {
+          roomId: string;
+          isTyping: boolean;
+          threadKey?: string;
+        }) => {
+          if (!socket.userId || !roomId) {
+            return;
+          }
+          const isDirect =
+            Boolean(threadKey?.startsWith("direct:")) || roomId.includes(":");
+          const resolvedThreadKey = isDirect
+            ? `direct:${socket.userId}`
+            : threadKey || `group:${roomId}`;
+          const payload = {
+            userId: socket.userId,
+            username: socket.username || "Someone",
+            isTyping: Boolean(isTyping),
+            threadKey: resolvedThreadKey,
+            roomId,
+          };
+          socket.to(roomId).emit("userTyping", payload);
+          if (isDirect) {
+            const otherId = roomId
+              .split(":")
+              .find((id) => id && id !== socket.userId);
+            if (otherId) {
+              emitToUser(otherId, "userTyping", payload);
+            }
           }
         }
       );

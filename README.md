@@ -18,6 +18,8 @@ Real-time chat app (Pulse): Next.js API/UI on port **3000**, Socket.IO presence 
 - **New chat** picker: one person starts a DM; two or more creates a group automatically
 - Groups list in the sidebar; reopen an existing group with the same members instead of duplicating it
 - Group messages show the sender name and update live for every member
+- New-message alerts: toast when you are in another chat, unread badge on the thread, and a count in the tab title
+- Typing indicator: bouncing dots and “is typing…” in the open chat, header, and contact list
 - Message requests when the other person does not have you as a contact
 - Accept a request to add them and open the thread
 - Decline a request to notify the sender and block further messages
@@ -88,6 +90,8 @@ npm run dev:all
 3. Click a contact, or use **New chat** and pick one person, to open the thread.
 4. History loads, and new messages appear live.
 5. Type in the composer and send. Your bubble appears immediately; theirs appears on their side if they already have you as a contact.
+6. If a message arrives while you are in another chat, a toast appears, that thread gets an unread badge, and the browser tab title shows the count. Click the toast or the thread to open it.
+7. While the other person is typing, you see bouncing dots and “is typing…” in the thread. Their contact row also shows Typing...
 
 ### 4. Start a group from New chat
 
