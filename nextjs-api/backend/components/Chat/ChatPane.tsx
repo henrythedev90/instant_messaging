@@ -154,7 +154,8 @@ export default function ChatPane({
         <div className="chat-empty">
           <h2>Start a chat</h2>
           <p className="muted">
-            Choose someone from your contacts to open a thread.
+            Choose someone from your contacts, or use New chat to start a
+            group.
           </p>
         </div>
       </section>

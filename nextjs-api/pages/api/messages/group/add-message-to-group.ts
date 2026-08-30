@@ -3,6 +3,7 @@ import { authenticate } from "../../../../backend/middleware/authenticate";
 import { GroupChatMessage, GroupMember } from "../../../../backend/types/types";
 import { getDb } from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
+import { serializeGroupMessage } from "../../../../backend/utils/groups";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const db = await getDb();
@@ -15,8 +16,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const { groupId, text } = req.body;
-
-    console.log(groupId, text);
 
     if (!groupId || !text) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -69,7 +68,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     return res.status(200).json({
       message: "Message added to group",
-      newMessage,
+      newMessage: serializeGroupMessage(newMessage),
     });
   } catch (error) {
     console.error("Error adding message to group:", error);

@@ -249,7 +249,10 @@ export const initSocketServer = (server: any) => {
             }
             socket.join(groupId);
             console.log(`User ${socket.userId} joined group room: ${groupId}`);
-            socket.emit("groupConversationHistory", groupsData.messages || []);
+            socket.emit(
+              "groupConversationHistory",
+              groupsData.messages || []
+            );
           } catch (error) {
             if (axios.isAxiosError(error)) {
               console.error(
@@ -405,6 +408,42 @@ export const initSocketServer = (server: any) => {
         }
       );
 
+      socket.on("announceGroup", (group: GroupChat) => {
+        if (!socket.userId || !group?.members) {
+          return;
+        }
+        const payload = group;
+        for (const member of group.members) {
+          emitToUser(asId(member.userId), "groupCreated", payload);
+        }
+      });
+
+      socket.on(
+        "relayGroupMessage",
+        (payload: GroupChatMessage | { message?: GroupChatMessage; memberIds?: string[] }) => {
+          const savedMessage =
+            payload && typeof payload === "object" && "message" in payload
+              ? payload.message
+              : (payload as GroupChatMessage);
+          const memberIds =
+            payload && typeof payload === "object" && "memberIds" in payload
+              ? payload.memberIds
+              : undefined;
+          if (!socket.userId || !savedMessage) {
+            return;
+          }
+          const groupId = asId(savedMessage.groupId);
+          io?.to(groupId).emit("receiveGroupMessage", savedMessage);
+          const recipients = new Set([
+            socket.userId,
+            ...(memberIds || []).map((id) => asId(id)),
+          ]);
+          for (const userId of recipients) {
+            emitToUser(userId, "receiveGroupMessage", savedMessage);
+          }
+        }
+      );
+
       socket.on(
         "sendGroupMessage",
         async ({
@@ -439,7 +478,7 @@ export const initSocketServer = (server: any) => {
               if (res.status === 200 && res.data.newMessage) {
                 const newMessage = res.data.newMessage;
 
-                io.to(message.groupId.toString()).emit(
+                io.to(asId(message.groupId)).emit(
                   "receiveGroupMessage",
                   newMessage
                 );

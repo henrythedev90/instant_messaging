@@ -11,6 +11,7 @@ import { io, Socket } from "socket.io-client";
 import { useAuth } from "../hooks/AuthContext";
 import axios from "axios";
 import {
+  GroupChat,
   GroupChatMessage,
   Message,
   MessageRequest,
@@ -18,6 +19,7 @@ import {
   OnlineUser,
 } from "../types/types";
 import { asId, normalizeMessage } from "../utils/ids";
+import { serializeGroup, serializeGroupMessage } from "../utils/groups";
 
 const SOCKET_SERVER_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
@@ -28,9 +30,12 @@ interface SocketContextValue {
   onlineUsers: OnlineUser[];
   privateMessages: Message[];
   groupMessages: GroupChatMessage[];
+  groups: GroupChat[];
   incomingRequests: MessageRequest[];
   requestOutcomes: Record<string, MessageRequestStatus>;
   addPrivateMessage: (message: Message) => void;
+  addGroupMessage: (message: GroupChatMessage) => void;
+  addGroup: (group: GroupChat) => void;
   setRequestOutcome: (userId: string, status: MessageRequestStatus) => void;
   removeIncomingRequest: (requestId: string) => void;
 }
@@ -44,6 +49,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [privateMessages, setPrivateMessages] = useState<Message[]>([]);
   const [groupMessages, setGroupMessages] = useState<GroupChatMessage[]>([]);
+  const [groups, setGroups] = useState<GroupChat[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<MessageRequest[]>([]);
   const [requestOutcomes, setRequestOutcomes] = useState<
     Record<string, MessageRequestStatus>
@@ -59,6 +65,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setOnlineUsers([]);
       setIncomingRequests([]);
       setRequestOutcomes({});
+      setGroups([]);
+      setGroupMessages([]);
       return;
     }
 
@@ -162,10 +170,42 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       });
     });
     newSocket.on("receiveGroupMessage", (message: GroupChatMessage) => {
-      setGroupMessages((prev) => [...prev, message]);
+      const incoming = serializeGroupMessage(message);
+      setGroupMessages((prev) => {
+        const incomingId = asId(incoming._id);
+        if (prev.some((item) => asId(item._id) === incomingId)) {
+          return prev;
+        }
+        return [...prev, incoming];
+      });
     });
     newSocket.on("groupConversationHistory", (messages: GroupChatMessage[]) => {
-      setGroupMessages(messages);
+      if (!Array.isArray(messages)) {
+        return;
+      }
+      setGroupMessages((prev) => {
+        const byId = new Map(
+          prev.map((item) => [asId(item._id), serializeGroupMessage(item)])
+        );
+        for (const item of messages) {
+          const normalized = serializeGroupMessage(item);
+          byId.set(asId(normalized._id), normalized);
+        }
+        return Array.from(byId.values());
+      });
+    });
+    newSocket.on("groupCreated", (group: GroupChat) => {
+      if (!group?._id) {
+        return;
+      }
+      const incoming = serializeGroup(group);
+      setGroups((prev) => {
+        const incomingId = asId(incoming._id);
+        if (prev.some((item) => asId(item._id) === incomingId)) {
+          return prev;
+        }
+        return [incoming, ...prev];
+      });
     });
     newSocket.on("strangerMessageRequest", (request: MessageRequest) => {
       if (!request?._id) {
@@ -233,7 +273,41 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {
         // Requests load again when the socket reconnects.
       });
+
+    axios
+      .get("/api/messages/group/fetch-all-messages", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        const list = Array.isArray(res.data.groups) ? res.data.groups : [];
+        setGroups(list.map((group: GroupChat) => serializeGroup(group)));
+      })
+      .catch(() => {
+        // Groups load again on the next visit.
+      });
   }, [token]);
+
+  const addGroupMessage = (message: GroupChatMessage) => {
+    const incoming = serializeGroupMessage(message);
+    setGroupMessages((prev) => {
+      const incomingId = asId(incoming._id);
+      if (prev.some((item) => asId(item._id) === incomingId)) {
+        return prev;
+      }
+      return [...prev, incoming];
+    });
+  };
+
+  const addGroup = (group: GroupChat) => {
+    const incoming = serializeGroup(group);
+    setGroups((prev) => {
+      const incomingId = asId(incoming._id);
+      if (prev.some((item) => asId(item._id) === incomingId)) {
+        return prev;
+      }
+      return [incoming, ...prev];
+    });
+  };
 
   const addPrivateMessage = (message: Message) => {
     const incoming = normalizeMessage(message);
@@ -263,9 +337,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       onlineUsers,
       privateMessages,
       groupMessages,
+      groups,
       incomingRequests,
       requestOutcomes,
       addPrivateMessage,
+      addGroupMessage,
+      addGroup,
       setRequestOutcome,
       removeIncomingRequest,
     }),
@@ -275,6 +352,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       onlineUsers,
       privateMessages,
       groupMessages,
+      groups,
       incomingRequests,
       requestOutcomes,
     ]

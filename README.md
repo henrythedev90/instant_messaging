@@ -15,6 +15,7 @@ Real-time chat app (Pulse): Next.js API/UI on port **3000**, Socket.IO presence 
 - Add contacts by username
 - Online / offline presence for contacts
 - One-to-one chat: open a contact, load history, send in real time
+- **New chat** picker: one person starts a DM; two or more creates a group automatically
 - Message requests when the other person does not have you as a contact
 - Accept a request to add them and open the thread
 - Decline a request to notify the sender and block further messages
@@ -85,7 +86,14 @@ npm run dev:all
 3. Click a contact to open the thread. History loads, and new messages appear live.
 4. Type in the composer and send. Your bubble appears immediately; theirs appears on their side if they already have you as a contact.
 
-### 4. Message request (stranger)
+### 4. Start a group from New chat
+
+1. Click **New chat** in the sidebar.
+2. Select one contact and **Start chat** to open a direct thread.
+3. Select two or more contacts. The button becomes **Create group** — Pulse names the group from those usernames and adds you as a member.
+4. The group appears under **Groups** for everyone in it. Open it to send messages live.
+
+### 5. Message request (stranger)
 
 Used when **you** have them as a contact, but **they** do not have you.
 
@@ -95,7 +103,7 @@ Used when **you** have them as a contact, but **they** do not have you.
 4. **Decline** — they are not added. You see **They declined your message request**, and further sends are blocked until they add you themselves.
 5. If they are offline when you send, the request is stored. The modal appears the next time they open the chat room.
 
-### 5. Sign out
+### 6. Sign out
 
 Use **Log out** in the header. The socket disconnects and you return to login.
 

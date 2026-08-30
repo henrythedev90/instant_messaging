@@ -1,10 +1,12 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Contact, ImUser } from "../../../backend/types/types";
+import { Contact, GroupChat, ImUser } from "../../../backend/types/types";
 import ContactList from "../../../backend/components/Contact/ContactList";
 import AddContact from "../../../backend/components/Contact/AddContact";
 import ChatPane from "../../../backend/components/Chat/ChatPane";
+import GroupChatPane from "../../../backend/components/Chat/GroupChatPane";
+import NewChatModal from "../../../backend/components/Chat/NewChatModal";
 import StrangerRequestModal from "../../../backend/components/Chat/StrangerRequestModal";
 import LogOut from "../../../backend/components/LogOut/LogOut";
 import { useRouter } from "next/navigation";
@@ -17,19 +19,34 @@ function initials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
+type ChatTarget =
+  | { type: "direct"; contact: Contact }
+  | { type: "group"; group: GroupChat }
+  | null;
+
 export default function Dashboard({ user }: { user: ImUser }) {
   const router = useRouter();
-  const { connected, onlineUsers, incomingRequests, socket, removeIncomingRequest } =
-    useSocket();
-  const { setContacts } = useContacts();
+  const {
+    connected,
+    onlineUsers,
+    incomingRequests,
+    socket,
+    removeIncomingRequest,
+    groups,
+    addGroup,
+  } = useSocket();
+  const { contacts, setContacts } = useContacts();
   const { token } = useAuth();
-  const [selected, setSelected] = useState<Contact | null>(null);
+  const [target, setTarget] = useState<ChatTarget>(null);
   const [responding, setResponding] = useState(false);
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [newChatError, setNewChatError] = useState("");
   const activeRequest = incomingRequests[0];
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token || !user?.username) {
+    const stored = localStorage.getItem("token");
+    if (!stored || !user?.username) {
       router.push("/login");
     }
   }, [user, router]);
@@ -60,7 +77,7 @@ export default function Dashboard({ user }: { user: ImUser }) {
           }
           return [...prev, res.data.contact];
         });
-        setSelected(res.data.contact);
+        setTarget({ type: "direct", contact: res.data.contact });
       }
     } catch (error) {
       console.error("Failed to respond to message request:", error);
@@ -69,10 +86,59 @@ export default function Dashboard({ user }: { user: ImUser }) {
     }
   };
 
+  const startChat = async (selected: Contact[]) => {
+    if (selected.length === 0) {
+      return;
+    }
+
+    if (selected.length === 1) {
+      setTarget({ type: "direct", contact: selected[0] });
+      setNewChatOpen(false);
+      setNewChatError("");
+      return;
+    }
+
+    if (!token) {
+      return;
+    }
+
+    setStarting(true);
+    setNewChatError("");
+    try {
+      const res = await axios.post(
+        "/api/messages/group/create-group-chat",
+        {
+          members: selected.map((contact) => contact.contactUsername),
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const group = res.data.group as GroupChat;
+      addGroup(group);
+      if (!res.data.existing) {
+        socket?.emit("announceGroup", group);
+      }
+      setTarget({ type: "group", group });
+      setNewChatOpen(false);
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        setNewChatError(
+          error.response?.data?.message || "Could not start group chat"
+        );
+      } else {
+        setNewChatError("Could not start group chat");
+      }
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const selectedContact =
+    target?.type === "direct" ? target.contact : null;
+  const selectedGroup = target?.type === "group" ? target.group : null;
   const selectedOnline = Boolean(
-    selected &&
+    selectedContact &&
       onlineUsers.some(
-        (item) => asId(item.userId) === asId(selected.contactId)
+        (item) => asId(item.userId) === asId(selectedContact.contactId)
       )
   );
 
@@ -94,19 +160,81 @@ export default function Dashboard({ user }: { user: ImUser }) {
         </header>
         <div className="dash-body">
           <aside className="panel sidebar">
-            <h2>Contacts</h2>
+            <button
+              className="btn btn-primary new-chat-btn"
+              type="button"
+              onClick={() => {
+                setNewChatError("");
+                setNewChatOpen(true);
+              }}
+            >
+              New chat
+            </button>
+            <h2>Chats</h2>
             <ContactList
-              selectedId={selected?.contactId.toString()}
-              onSelect={setSelected}
+              selectedId={
+                selectedContact ? asId(selectedContact.contactId) : null
+              }
+              onSelect={(contact) =>
+                setTarget({ type: "direct", contact })
+              }
             />
+            {groups.length > 0 && (
+              <div className="sidebar-groups">
+                <h2>Groups</h2>
+                <ul className="contact-list">
+                  {groups.map((group) => {
+                    const id = asId(group._id);
+                    const active =
+                      selectedGroup && asId(selectedGroup._id) === id;
+                    return (
+                      <li key={id}>
+                        <button
+                          type="button"
+                          className={`contact-item ${active ? "active" : ""}`}
+                          onClick={() => setTarget({ type: "group", group })}
+                        >
+                          <div className="contact-name">
+                            <div className="avatar">
+                              {group.groupName.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span>{group.groupName}</span>
+                          </div>
+                          <div className="status-pill">
+                            {group.members.length}
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             <div className="sidebar-add">
               <h2>Add someone</h2>
-              <AddContact onAdded={setSelected} />
+              <AddContact
+                onAdded={(contact) =>
+                  setTarget({ type: "direct", contact })
+                }
+              />
             </div>
           </aside>
-          <ChatPane contact={selected} online={selectedOnline} />
+          {selectedGroup ? (
+            <GroupChatPane group={selectedGroup} />
+          ) : (
+            <ChatPane contact={selectedContact} online={selectedOnline} />
+          )}
         </div>
       </section>
+      {newChatOpen && (
+        <NewChatModal
+          contacts={contacts}
+          busy={starting}
+          error={newChatError}
+          onClose={() => setNewChatOpen(false)}
+          onStart={startChat}
+        />
+      )}
       {activeRequest && (
         <StrangerRequestModal
           request={activeRequest}

@@ -3,6 +3,7 @@ import { authenticate } from "../../../../backend/middleware/authenticate";
 import { getDb } from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { GroupChat, GroupChatMessage } from "../../../../backend/types/types";
+import { serializeGroup, serializeGroupMessage } from "../../../../backend/utils/groups";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -38,8 +39,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       return res.status(200).json({
         groups: {
-          ...group,
-          messages,
+          ...serializeGroup(group),
+          messages: messages.map((message) => serializeGroupMessage(message)),
         },
       });
     }
@@ -52,11 +53,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .toArray();
 
     return res.status(200).json({
-      groups: groupChats.map((chat) => ({
-        ...chat,
-        _id: chat._id.toString(),
-        adminId: chat.adminId.toString(),
-      })),
+      groups: groupChats.map((chat) => serializeGroup(chat)),
     });
   } catch (error) {
     console.error("Error fetching group messages:", error);
