@@ -39,10 +39,20 @@ export default function ChatRoom() {
     }
   }, [token]);
 
+  if (!users) {
+    return (
+      <ProtectedRoute>
+        <main className="app-shell">
+          <p className="loading">Loading your workspace...</p>
+        </main>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <ContactsProvider>
-        {users && <Dashboard user={users.user} />}
+        <Dashboard user={users.user} />
       </ContactsProvider>
     </ProtectedRoute>
   );

@@ -15,11 +15,16 @@ if (process.env.NODE_ENV === "development") {
   // is preserved across module reloads caused by HMR (Hot Module Replacement).
   const globalWithMongo = global as typeof globalThis & {
     _mongoClientPromise?: Promise<MongoClient>;
+    _mongoClientUri?: string;
   };
 
-  if (!globalWithMongo._mongoClientPromise) {
+  if (
+    !globalWithMongo._mongoClientPromise ||
+    globalWithMongo._mongoClientUri !== uri
+  ) {
     client = new MongoClient(uri, options);
     globalWithMongo._mongoClientPromise = client.connect();
+    globalWithMongo._mongoClientUri = uri;
   }
   clientPromise = globalWithMongo._mongoClientPromise;
 } else {

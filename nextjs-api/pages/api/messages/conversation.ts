@@ -3,6 +3,7 @@ import { getDb } from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { Message } from "../../../backend/types/types";
 import { authenticate } from "../../../backend/middleware/authenticate";
+import { normalizeMessage } from "../../../backend/utils/ids";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const db = await getDb();
@@ -35,7 +36,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .sort({ timestamp: -1 })
       .toArray();
 
-    res.status(200).json({ conversation });
+    res.status(200).json({
+      conversation: conversation.map((message) => normalizeMessage(message)),
+    });
   } catch (error) {
     console.error("Error fetching conversation:", error);
     res.status(500).json({ message: "Internal server error" });

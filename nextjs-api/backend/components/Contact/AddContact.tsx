@@ -1,14 +1,19 @@
+"use client";
 import axios from "axios";
 import React, { useState } from "react";
 import { useAuth } from "../../hooks/AuthContext";
-import { useContacts } from "../../context/ContactProvider"; // Import here
+import { useContacts } from "../../context/ContactProvider";
+import { Contact } from "../../types/types";
 
-export default function AddContact() {
+export default function AddContact({
+  onAdded,
+}: {
+  onAdded?: (contact: Contact) => void;
+}) {
   const [contactUsername, setContactUsername] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  // const [showModal, setShowModal] = useState(false);
   const { token } = useAuth();
   const { setContacts } = useContacts();
 
@@ -29,33 +34,41 @@ export default function AddContact() {
         }
       );
 
-      const newContact = res.data.contact;
-      console.log(newContact, "this is the new contact");
-
-      // Optimistically update UI
       setContacts((prevContacts) => [...prevContacts, res.data.contact]);
-
-      setSuccess("Contact added successfully!");
-    } catch (error) {
-      console.error("Error adding contact:", error);
-      setError("Error adding contact");
+      setSuccess(`${contactUsername} is now in your contacts.`);
+      onAdded?.(res.data.contact);
+      setContactUsername("");
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || "Could not add contact");
+      } else {
+        setError("Could not add contact");
+      }
     } finally {
       setLoading(false);
-      setContactUsername("");
     }
   };
 
   return (
-    <div>
-      <h1>Add Contact</h1>
-      <form onSubmit={handleSubmit}>
+    <form className="add-form" onSubmit={handleSubmit}>
+      <p className="muted">
+        Enter a username that already has an account.
+      </p>
+      {error && <div className="banner banner-error">{error}</div>}
+      {success && <div className="banner banner-success">{success}</div>}
+      <div className="field">
+        <label htmlFor="contactUsername">Username</label>
         <input
+          id="contactUsername"
           type="text"
           value={contactUsername}
           onChange={(e) => setContactUsername(e.target.value)}
+          required
         />
-        <button type="submit">Add Contact</button>
-      </form>
-    </div>
+      </div>
+      <button className="btn btn-primary" type="submit" disabled={loading}>
+        {loading ? "Adding..." : "Add contact"}
+      </button>
+    </form>
   );
 }

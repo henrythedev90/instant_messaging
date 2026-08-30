@@ -13,8 +13,23 @@ export interface ImUser {
 export interface DecodedToken {
   userId: string;
   email: string;
+  username?: string;
   iat: number;
   exp: number;
+}
+
+export type MessageRequestStatus = "pending" | "accepted" | "denied";
+
+export interface MessageRequest {
+  _id: string;
+  fromUserId: string;
+  fromUsername: string;
+  toUserId: string;
+  toUsername: string;
+  preview: string;
+  status: MessageRequestStatus;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 export interface Contact {
   ownerId: ObjectId;

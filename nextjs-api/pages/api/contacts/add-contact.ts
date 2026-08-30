@@ -51,6 +51,23 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
       await db.collection("contacts").insertOne(newContact);
 
+      await db.collection("messageRequests").updateMany(
+        {
+          $or: [
+            {
+              fromUserId: contactId,
+              toUserId: new ObjectId(userId as string),
+            },
+            {
+              fromUserId: new ObjectId(userId as string),
+              toUserId: contactId,
+            },
+          ],
+          status: { $in: ["pending", "denied"] },
+        },
+        { $set: { status: "accepted", updatedAt: new Date() } }
+      );
+
       return res.status(201).json({
         message: "Contact added successfully",
         contact: newContact,

@@ -9,7 +9,15 @@ import {
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "../hooks/AuthContext";
-import { GroupChatMessage, Message, OnlineUser } from "../types/types";
+import axios from "axios";
+import {
+  GroupChatMessage,
+  Message,
+  MessageRequest,
+  MessageRequestStatus,
+  OnlineUser,
+} from "../types/types";
+import { asId, normalizeMessage } from "../utils/ids";
 
 const SOCKET_SERVER_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
@@ -20,6 +28,11 @@ interface SocketContextValue {
   onlineUsers: OnlineUser[];
   privateMessages: Message[];
   groupMessages: GroupChatMessage[];
+  incomingRequests: MessageRequest[];
+  requestOutcomes: Record<string, MessageRequestStatus>;
+  addPrivateMessage: (message: Message) => void;
+  setRequestOutcome: (userId: string, status: MessageRequestStatus) => void;
+  removeIncomingRequest: (requestId: string) => void;
 }
 
 const SocketContext = createContext<SocketContextValue | undefined>(undefined);
@@ -31,6 +44,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [privateMessages, setPrivateMessages] = useState<Message[]>([]);
   const [groupMessages, setGroupMessages] = useState<GroupChatMessage[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<MessageRequest[]>([]);
+  const [requestOutcomes, setRequestOutcomes] = useState<
+    Record<string, MessageRequestStatus>
+  >({});
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -40,6 +57,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setSocket(null);
       setConnected(false);
       setOnlineUsers([]);
+      setIncomingRequests([]);
+      setRequestOutcomes({});
       return;
     }
 
@@ -116,8 +135,31 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     newSocket.on("onlineUsers", handleOnlineUsers);
     newSocket.on("userStatusChanged", handleUserStatusChange);
+    newSocket.on("conversationHistory", (messages: Message[]) => {
+      if (!Array.isArray(messages)) {
+        return;
+      }
+      setPrivateMessages((prev) => {
+        const byId = new Map(
+          prev.map((item) => [asId(item._id), normalizeMessage(item)])
+        );
+        for (const item of messages) {
+          const normalized = normalizeMessage(item);
+          byId.set(asId(normalized._id), normalized);
+        }
+        return Array.from(byId.values()) as Message[];
+      });
+    });
+
     newSocket.on("receivePrivateMessage", (message: Message) => {
-      setPrivateMessages((prev) => [...prev, message]);
+      const incoming = normalizeMessage(message);
+      setPrivateMessages((prev) => {
+        const incomingId = asId(incoming._id);
+        if (prev.some((item) => asId(item._id) === incomingId)) {
+          return prev;
+        }
+        return [...prev, incoming as Message];
+      });
     });
     newSocket.on("receiveGroupMessage", (message: GroupChatMessage) => {
       setGroupMessages((prev) => [...prev, message]);
@@ -125,6 +167,40 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     newSocket.on("groupConversationHistory", (messages: GroupChatMessage[]) => {
       setGroupMessages(messages);
     });
+    newSocket.on("strangerMessageRequest", (request: MessageRequest) => {
+      if (!request?._id) {
+        return;
+      }
+      setIncomingRequests((prev) => {
+        const incomingId = asId(request._id);
+        const without = prev.filter((item) => asId(item._id) !== incomingId);
+        return [...without, request];
+      });
+    });
+    newSocket.on(
+      "messageRequestResolved",
+      ({
+        status,
+        request,
+      }: {
+        status: MessageRequestStatus;
+        request: MessageRequest;
+      }) => {
+        if (!request) {
+          return;
+        }
+        setIncomingRequests((prev) =>
+          prev.filter((item) => asId(item._id) !== asId(request._id))
+        );
+        const otherId =
+          asId(request.fromUserId) === asId(userId)
+            ? asId(request.toUserId)
+            : asId(request.fromUserId);
+        if (otherId) {
+          setRequestOutcomes((prev) => ({ ...prev, [otherId]: status }));
+        }
+      }
+    );
 
     return () => {
       newSocket.removeAllListeners();
@@ -137,6 +213,49 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
   }, [userId, token]);
 
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    axios
+      .get("/api/contacts/message-requests", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setIncomingRequests(res.data.incoming || []);
+        const outcomes: Record<string, MessageRequestStatus> = {};
+        for (const item of res.data.outgoing || []) {
+          outcomes[asId(item.toUserId)] = item.status;
+        }
+        setRequestOutcomes(outcomes);
+      })
+      .catch(() => {
+        // Requests load again when the socket reconnects.
+      });
+  }, [token]);
+
+  const addPrivateMessage = (message: Message) => {
+    const incoming = normalizeMessage(message);
+    setPrivateMessages((prev) => {
+      const incomingId = asId(incoming._id);
+      if (prev.some((item) => asId(item._id) === incomingId)) {
+        return prev;
+      }
+      return [...prev, incoming as Message];
+    });
+  };
+
+  const setRequestOutcome = (otherUserId: string, status: MessageRequestStatus) => {
+    setRequestOutcomes((prev) => ({ ...prev, [asId(otherUserId)]: status }));
+  };
+
+  const removeIncomingRequest = (requestId: string) => {
+    setIncomingRequests((prev) =>
+      prev.filter((item) => asId(item._id) !== asId(requestId))
+    );
+  };
+
   const value = useMemo(
     () => ({
       socket,
@@ -144,8 +263,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       onlineUsers,
       privateMessages,
       groupMessages,
+      incomingRequests,
+      requestOutcomes,
+      addPrivateMessage,
+      setRequestOutcome,
+      removeIncomingRequest,
     }),
-    [socket, connected, onlineUsers, privateMessages, groupMessages]
+    [
+      socket,
+      connected,
+      onlineUsers,
+      privateMessages,
+      groupMessages,
+      incomingRequests,
+      requestOutcomes,
+    ]
   );
 
   return (

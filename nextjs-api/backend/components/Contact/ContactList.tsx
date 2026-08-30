@@ -1,3 +1,4 @@
+"use client";
 import { useState, useEffect } from "react";
 import { useContacts } from "../../context/ContactProvider";
 import axios from "axios";
@@ -5,29 +6,18 @@ import { useAuth } from "../../hooks/AuthContext";
 import { useSocket } from "../../hooks/useSocket";
 import { Contact } from "../../types/types";
 
-export default function ContactList() {
+export default function ContactList({
+  selectedId,
+  onSelect,
+}: {
+  selectedId?: string | null;
+  onSelect?: (contact: Contact) => void;
+}) {
   const [isLoading, setIsLoading] = useState(true);
+  const [query, setQuery] = useState("");
   const { contacts, setContacts } = useContacts();
-  const { token, refreshToken, userId } = useAuth();
-  const { socket, onlineUsers, connected } = useSocket(); // Added 'connected' here
-
-  // Debug auth state whenever it changes
-  useEffect(() => {
-    console.log("Auth state in ContactList:", {
-      userId,
-      hasToken: !!token,
-      contactsCount: contacts?.length || 0,
-    });
-  }, [userId, token, contacts]);
-
-  // Debug socket connection
-  useEffect(() => {
-    console.log("Socket state in ContactList:", {
-      socketExists: !!socket,
-      connected,
-      onlineUsersCount: onlineUsers?.length || 0,
-    });
-  }, [socket, connected, onlineUsers]);
+  const { token, refreshToken } = useAuth();
+  const { onlineUsers, connected } = useSocket();
 
   const fetchContacts = async () => {
     try {
@@ -45,12 +35,10 @@ export default function ContactList() {
         try {
           await refreshToken();
           fetchContacts();
-        } catch (error) {
-          console.error("Error refreshing token:", error);
+        } catch {
           setIsLoading(false);
         }
       } else {
-        console.error("Error fetching contacts:", error);
         setIsLoading(false);
       }
     }
@@ -58,7 +46,6 @@ export default function ContactList() {
 
   useEffect(() => {
     if (!token) {
-      console.log("No token available, skipping contact fetch");
       setIsLoading(false);
       return;
     }
@@ -71,57 +58,71 @@ export default function ContactList() {
       return false;
     }
 
-    // Log for debugging
-    console.log("Checking if contact is online:", {
-      contactId,
-      onlineUsers: onlineUsers.map((u) =>
-        typeof u === "object" ? u.userId : u
-      ),
-    });
-
     return onlineUsers.some((item) => {
-      // If item has userId property (most likely case based on your code)
       if (item && typeof item === "object" && "userId" in item) {
-        const match = String(item.userId) === String(contactId);
-        if (match) console.log(`Match found: ${item.userId} = ${contactId}`);
-        return match;
+        return String(item.userId) === String(contactId);
       }
-
-      // For simple string/number IDs
       if (typeof item === "string" || typeof item === "number") {
-        const match = String(item) === String(contactId);
-        if (match) console.log(`Match found: ${item} = ${contactId}`);
-        return match;
+        return String(item) === String(contactId);
       }
-
       return false;
     });
   };
 
+  const visibleContacts = (contacts || []).filter((contact) =>
+    contact.contactUsername.toLowerCase().includes(query.toLowerCase())
+  );
+
+  if (isLoading) {
+    return <p className="loading">Loading contacts...</p>;
+  }
+
   return (
-    <>
-      {isLoading ? (
-        <div>Loading...</div>
-      ) : (
-        <ul>
-          {contacts && contacts.length > 0 ? (
-            contacts.map((contact: Contact) => (
+    <div>
+      <div className="field" style={{ marginBottom: 12 }}>
+        <input
+          type="search"
+          placeholder="Search contacts"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search contacts"
+        />
+      </div>
+      {visibleContacts.length > 0 ? (
+        <ul className="contact-list">
+          {visibleContacts.map((contact: Contact) => {
+            const online = isContactOnline(contact.contactId.toString());
+            return (
               <li key={contact.contactId.toString()}>
-                <div>
-                  <span>{contact.contactUsername}</span>
-                  {isContactOnline(contact.contactId.toString()) && (
-                    <span style={{ color: "green", marginLeft: "5px" }}>
-                      ● Online
-                    </span>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  className={`contact-item ${
+                    selectedId === contact.contactId.toString() ? "active" : ""
+                  }`}
+                  onClick={() => onSelect?.(contact)}
+                >
+                  <div className="contact-name">
+                    <div className="avatar">
+                      {contact.contactUsername.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span>{contact.nickname || contact.contactUsername}</span>
+                  </div>
+                  <div className="status-pill">
+                    <span className={`status-dot ${online ? "on" : ""}`} />
+                    {online ? "Online" : "Offline"}
+                  </div>
+                </button>
               </li>
-            ))
-          ) : (
-            <li>No contacts found</li>
-          )}
+            );
+          })}
         </ul>
+      ) : (
+        <p className="empty">
+          {query
+            ? "No contacts match that search."
+            : "No contacts yet. Add someone by username."}
+        </p>
       )}
-    </>
+    </div>
   );
 }

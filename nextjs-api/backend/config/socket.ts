@@ -1,8 +1,9 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { ObjectId } from "mongodb";
-import { Message, GroupChatMessage, GroupChat } from "../types/types";
+import { Message, GroupChatMessage, GroupChat, MessageRequest } from "../types/types";
 import jwt from "jsonwebtoken";
 import axios from "axios";
+import { asId, normalizeMessage } from "../utils/ids";
 
 interface UserSocket extends Socket {
   userId?: string;
@@ -12,7 +13,7 @@ interface TokenPayload {
   userId?: string;
 }
 
-const userSockets = new Map<string, Socket>();
+const userSockets = new Map<string, Set<Socket>>();
 const onlineUsers = new Map<string, string>();
 
 let io: SocketIOServer | null = null;
@@ -44,19 +45,42 @@ function getOnlineUsersList() {
   }));
 }
 
-function markUserOnline(socket: UserSocket, userId: string) {
-  const existingSocket = userSockets.get(userId);
-  if (existingSocket && existingSocket !== socket && existingSocket.connected) {
-    existingSocket.disconnect();
-  }
+function privateThreadId(userA: string, userB: string) {
+  return [String(userA), String(userB)].sort().join(":");
+}
 
+function markUserOnline(socket: UserSocket, userId: string) {
   socket.userId = userId;
-  userSockets.set(userId, socket);
+  if (!userSockets.has(userId)) {
+    userSockets.set(userId, new Set());
+  }
+  userSockets.get(userId)!.add(socket);
   onlineUsers.set(userId, userId);
-  console.log(`User connected: ${userId}`);
+  console.log(`User connected: ${userId} (${userSockets.get(userId)?.size} sockets)`);
 
   io?.emit("userStatusChanged", { userId, status: "online" });
   io?.emit("onlineUsers", getOnlineUsersList());
+}
+
+function emitToUser(userId: string, event: string, payload: unknown) {
+  const sockets = userSockets.get(userId);
+  if (!sockets) {
+    return;
+  }
+  for (const userSocket of sockets) {
+    if (userSocket.connected) {
+      userSocket.emit(event, payload);
+    }
+  }
+}
+
+function broadcastPrivateMessage(savedMessage: Message, senderId: string) {
+  const payload = normalizeMessage(savedMessage);
+  const receiverId = asId(payload.receiver);
+  const threadId = privateThreadId(senderId, receiverId);
+  io?.to(threadId).emit("receivePrivateMessage", payload);
+  emitToUser(receiverId, "receivePrivateMessage", payload);
+  emitToUser(senderId, "receivePrivateMessage", payload);
 }
 
 export const initSocketServer = (server: any) => {
@@ -158,8 +182,7 @@ export const initSocketServer = (server: any) => {
           const contacts = res.data.contacts;
 
           const isContact = contacts.some(
-            (contact: { contactId: string }) =>
-              contact.contactId.toString() === roomId
+            (contact: { contactId: string }) => asId(contact.contactId) === asId(roomId)
           );
           if (!isContact) {
             console.log(
@@ -170,8 +193,9 @@ export const initSocketServer = (server: any) => {
             });
             return;
           }
-          socket.join(roomId);
-          console.log(`User ${socket.userId} joined private room: ${roomId}`);
+          const threadId = privateThreadId(socket.userId, roomId);
+          socket.join(threadId);
+          console.log(`User ${socket.userId} joined private room: ${threadId}`);
           const conversationResponse = await axios.get(
             `http://localhost:3000/api/messages/conversation?receiverId=${roomId}`,
             {
@@ -179,7 +203,9 @@ export const initSocketServer = (server: any) => {
             }
           );
 
-          const conversation = conversationResponse.data.conversation;
+          const conversation = (conversationResponse.data.conversation || []).map(
+            (message: Message) => normalizeMessage(message)
+          );
           socket.emit("conversationHistory", conversation);
         } catch (error) {
           if (axios.isAxiosError(error)) {
@@ -238,6 +264,80 @@ export const initSocketServer = (server: any) => {
       );
 
       socket.on(
+        "relayPrivateMessage",
+        (payload: Message | {
+          savedMessage?: Message;
+          requiresApproval?: boolean;
+          request?: MessageRequest;
+        }) => {
+          if (!socket.userId || !payload) {
+            return;
+          }
+
+          const savedMessage =
+            payload && typeof payload === "object" && "savedMessage" in payload
+              ? payload.savedMessage
+              : (payload as Message);
+          const request =
+            payload && typeof payload === "object" && "request" in payload
+              ? payload.request
+              : undefined;
+          const requiresApproval = Boolean(
+            (payload &&
+              typeof payload === "object" &&
+              "requiresApproval" in payload &&
+              payload.requiresApproval) ||
+              request?.status === "pending"
+          );
+
+          if (!savedMessage) {
+            return;
+          }
+
+          if (requiresApproval && request) {
+            const normalized = normalizeMessage(savedMessage);
+            emitToUser(socket.userId, "receivePrivateMessage", normalized);
+            emitToUser(asId(request.toUserId), "strangerMessageRequest", request);
+            return;
+          }
+
+          broadcastPrivateMessage(savedMessage, socket.userId);
+        }
+      );
+
+      socket.on(
+        "resolveMessageRequest",
+        ({
+          request,
+          action,
+          contact,
+        }: {
+          request: MessageRequest;
+          action: "accept" | "deny";
+          contact?: unknown;
+        }) => {
+          if (!socket.userId || !request) {
+            return;
+          }
+
+          const fromUserId = asId(request.fromUserId);
+          const toUserId = asId(request.toUserId);
+          if (toUserId !== socket.userId) {
+            return;
+          }
+
+          const payload = {
+            status: action === "accept" ? "accepted" : "denied",
+            request: { ...request, status: action === "accept" ? "accepted" : "denied" },
+            contact: action === "accept" ? contact : null,
+          };
+
+          emitToUser(fromUserId, "messageRequestResolved", payload);
+          emitToUser(toUserId, "messageRequestResolved", payload);
+        }
+      );
+
+      socket.on(
         "sendPrivateMessage",
         async ({
           message,
@@ -272,26 +372,24 @@ export const initSocketServer = (server: any) => {
                 }
               );
               const savedMessage = res.data.savedMessage || res.data;
-
-              io.to(message.receiver.toString()).emit(
-                "receivePrivateMessage",
-                savedMessage
-              );
-
-              if (
-                message.receiver &&
-                socket.userId !== message.receiver.toString()
-              ) {
-                const recipientSocket = userSockets.get(
-                  message.receiver.toString()
+              if (res.data.requiresApproval && res.data.request) {
+                emitToUser(
+                  socket.userId,
+                  "receivePrivateMessage",
+                  normalizeMessage(savedMessage)
                 );
-                if (recipientSocket) {
-                  recipientSocket.emit("newMessageNotification", {
-                    senderId: socket.userId,
-                    type: "private",
-                    message: message.content,
-                  });
-                }
+                emitToUser(
+                  asId(res.data.request.toUserId),
+                  "strangerMessageRequest",
+                  res.data.request
+                );
+              } else {
+                broadcastPrivateMessage(savedMessage, socket.userId);
+                emitToUser(asId(savedMessage.receiver), "newMessageNotification", {
+                  senderId: socket.userId,
+                  type: "private",
+                  message: message.content,
+                });
               }
             } catch (error) {
               if (axios.isAxiosError(error)) {
@@ -393,12 +491,14 @@ export const initSocketServer = (server: any) => {
         if (userId) {
           console.log(`User ${userId} disconnected`);
 
-          if (userSockets.get(userId) === socket) {
+          const sockets = userSockets.get(userId);
+          sockets?.delete(socket);
+          if (sockets && sockets.size === 0) {
             userSockets.delete(userId);
           }
 
           setTimeout(() => {
-            const userStillConnected = userSockets.has(userId);
+            const userStillConnected = (userSockets.get(userId)?.size || 0) > 0;
 
             if (!userStillConnected) {
               onlineUsers.delete(userId);
@@ -425,5 +525,9 @@ export const getSocketServer = () => {
 };
 
 export const getUserSocket = (userId: string): Socket | undefined => {
-  return userSockets.get(userId);
+  const sockets = userSockets.get(userId);
+  if (!sockets) {
+    return undefined;
+  }
+  return Array.from(sockets).find((socket) => socket.connected);
 };

@@ -24,72 +24,77 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      };
-
       const isEmail = values.identifier.includes("@");
       const payload = {
         password: values.password,
         [isEmail ? "email" : "username"]: values.identifier,
       };
 
-      const response = await axios.post("/api/login", payload, { headers });
+      const response = await axios.post("/api/login", payload);
       const { token: responseToken, userId } = response.data;
 
       if (responseToken && userId) {
         await login(responseToken, userId);
       } else {
         setError("Login response missing token or userId");
-        console.error("Login response missing token or userId");
       }
     } catch (err) {
-      console.error("Login error:", err);
-      setError(
-        err instanceof Error ? err.message : "An error occurred during login"
-      );
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || "Could not log in");
+      } else {
+        setError("An error occurred during login");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
-      <h1>Login</h1>
-      {error && <p className="error">{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="Email or Username"
-          name="identifier"
-          value={values.identifier}
-          onChange={handleChanges}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          name="password"
-          value={values.password}
-          onChange={handleChanges}
-          required
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
-        </button>
-      </form>
-      <div>
-        <p>New to site?</p>
-        <button
-          onClick={() => {
-            router.push("/signup");
-          }}
-        >
-          Sign Up
-        </button>
-      </div>
-    </div>
+    <main className="app-shell">
+      <section className="auth-card">
+        <div className="brand">
+          <div className="brand-mark">P</div>
+          <span>Pulse</span>
+        </div>
+        <h1>Welcome back</h1>
+        <p className="lede">Sign in to see who is online and start chatting.</p>
+        {error && <div className="banner banner-error">{error}</div>}
+        <form className="form" onSubmit={handleSubmit}>
+          <div className="field">
+            <label htmlFor="identifier">Email or username</label>
+            <input
+              id="identifier"
+              type="text"
+              name="identifier"
+              autoComplete="username"
+              value={values.identifier}
+              onChange={handleChanges}
+              required
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              name="password"
+              autoComplete="current-password"
+              value={values.password}
+              onChange={handleChanges}
+              required
+            />
+          </div>
+          <button className="btn btn-primary" type="submit" disabled={loading}>
+            {loading ? "Signing in..." : "Sign in"}
+          </button>
+        </form>
+        <div className="auth-footer">
+          <span>New here?</span>
+          <button className="btn btn-ghost" type="button" onClick={() => router.push("/signup")}>
+            Create an account
+          </button>
+        </div>
+      </section>
+    </main>
   );
 }

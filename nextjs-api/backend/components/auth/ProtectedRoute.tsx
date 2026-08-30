@@ -31,7 +31,11 @@ export default function ProtectedRoute({
   }, [token, isLoggingOut, router]);
 
   if (!token && !isLoggingOut) {
-    return null;
+    return (
+      <main className="app-shell">
+        <p className="loading">Redirecting to sign in...</p>
+      </main>
+    );
   }
   return <>{children}</>;
 }
