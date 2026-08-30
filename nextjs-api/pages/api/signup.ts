@@ -8,9 +8,17 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const client = await clientPromise;
-
-  const db = client.db("Cluster0");
+  let db;
+  try {
+    const client = await clientPromise;
+    db = client.db(process.env.MONGODB_DB || "Cluster0");
+  } catch (error) {
+    console.error("MongoDB connection failed:", error);
+    return res.status(500).json({
+      message:
+        "Database unreachable. Check MONGODB_URI in .env.local — the Atlas cluster host could not be resolved.",
+    });
+  }
 
   if (req.method === "GET") {
     try {
@@ -49,6 +57,7 @@ export default async function handler(
         firstName,
         lastName,
         password: hashedPassword,
+        status: "offline",
       };
 
       const token = jwt.sign(
