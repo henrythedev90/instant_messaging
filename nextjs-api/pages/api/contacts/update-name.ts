@@ -1,12 +1,11 @@
 import { authenticate } from "../../../backend/middleware/authenticate";
-import clientPromise from "../../../backend/config/mongodb";
+import { getDb } from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { Contact } from "../../../backend/types/types";
 import { NextApiRequest, NextApiResponse } from "next";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
   const userId = (req as any).user.userId;
 
   if (req.method !== "PUT") {

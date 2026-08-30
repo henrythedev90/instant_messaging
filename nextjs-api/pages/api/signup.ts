@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../backend/config/mongodb";
+import { getDb } from "../../backend/config/mongodb";
 import bcrypt from "bcryptjs";
 import { ImUser } from "../../backend/types/types";
 import jwt from "jsonwebtoken";
@@ -10,8 +10,7 @@ export default async function handler(
 ) {
   let db;
   try {
-    const client = await clientPromise;
-    db = client.db(process.env.MONGODB_DB || "Cluster0");
+    db = await getDb();
   } catch (error) {
     console.error("MongoDB connection failed:", error);
     return res.status(500).json({
@@ -42,7 +41,7 @@ export default async function handler(
     try {
       const existingUser = await db
         .collection("imUsers")
-        .findOne({ $or: [{ email }, { username }] });
+        .findOne({ $or: [{ email: email.toLowerCase() }, { username }] });
 
       if (existingUser) {
         return res.status(400).json({ message: "User already exists" });

@@ -1,11 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
+import { getDb } from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { authenticate } from "../../../backend/middleware/authenticate";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
 
   if (req.method === "PUT") {
     try {
@@ -21,7 +20,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         .collection("messages")
         .updateOne(
           { _id: new ObjectId(messageId as string) },
-          { $set: { content, timestamp: new Date().toLocaleString() } }
+          { $set: { content, timestamp: new Date() } }
         );
 
       if (result.modifiedCount === 0) {

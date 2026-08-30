@@ -1,20 +1,17 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
+import { getDb } from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { Message, Contact } from "../../../backend/types/types";
 import { authenticate } from "../../../backend/middleware/authenticate";
-import { getSocketServer } from "../../../backend/config/socket";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
-
   if (req.method !== "POST") {
     return res.status(405).json({ message: "Method not allowed" });
   }
 
   try {
-    const { receiverName, content } = req.body;
+    const db = await getDb();
+    const { receiver, receiverId, receiverName, content } = req.body;
     const senderId = (req as any).user.userId;
     const senderUsername = (req as any).user.username;
 
@@ -24,59 +21,68 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         .json({ message: "Message content cannot be empty" });
     }
 
-    if (receiverName === senderUsername) {
+    let receiverObjectId: ObjectId | null = null;
+
+    if (receiver || receiverId) {
+      const rawId = String(receiver || receiverId);
+      if (!ObjectId.isValid(rawId)) {
+        return res.status(400).json({ message: "Invalid receiver ID" });
+      }
+      receiverObjectId = new ObjectId(rawId);
+    } else if (receiverName) {
+      if (receiverName === senderUsername) {
+        return res
+          .status(400)
+          .json({ message: "Cannot send message to yourself" });
+      }
+
+      const namedContact = await db.collection("contacts").findOne<Contact>({
+        ownerId: new ObjectId(senderId as string),
+        contactUsername: receiverName,
+      });
+
+      if (!namedContact) {
+        return res.status(403).json({
+          message: "Cannot send message to users not in your contacts",
+        });
+      }
+      receiverObjectId = new ObjectId(namedContact.contactId);
+    } else {
+      return res.status(400).json({ message: "Receiver is required" });
+    }
+
+    if (receiverObjectId.toString() === senderId) {
       return res
         .status(400)
         .json({ message: "Cannot send message to yourself" });
     }
 
-    const senderContacts = await db
-      .collection("contacts")
-      .findOne({ ownerId: new ObjectId(senderId as string) });
-
-    if (
-      !senderContacts ||
-      !senderContacts.contacts.some(
-        (contact: Contact) => contact.contactUsername === receiverName
-      )
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Cannot send message to users not in your contacts" });
-    }
-
-    const receiver = await db.collection("contacts").findOne({
+    const isContact = await db.collection("contacts").findOne<Contact>({
       ownerId: new ObjectId(senderId as string),
-      contactUsername: receiverName,
+      contactId: receiverObjectId,
     });
 
-    console.log(receiver, "this is the receiver from DB");
-
-    if (!receiver) {
-      return res.status(404).json({ message: "Receiver not found" });
+    if (!isContact) {
+      return res.status(403).json({
+        message: "Cannot send message to users not in your contacts",
+      });
     }
 
-    const receiverContent = receiver.contacts.find(
-      (contact: Contact) => contact.contactUsername === receiverName
-    );
-
-    const message: Message = {
+    const savedMessage: Message = {
       _id: new ObjectId(),
       sender: new ObjectId(senderId as string),
-      receiver: new ObjectId(receiverContent?.contactId as string),
-      content: content,
+      receiver: receiverObjectId,
+      content: content.trim(),
       timestamp: new Date(),
       read: false,
     };
 
-    await db.collection("messages").insertOne(message);
+    await db.collection("messages").insertOne(savedMessage);
 
-    const io = getSocketServer();
-    if (io) {
-      io.to(message.receiver.toString()).emit("receiveMessage", message);
-    }
-
-    res.status(201).json({ message: "Message sent successfully" });
+    res.status(201).json({
+      message: "Message sent successfully",
+      savedMessage,
+    });
   } catch (error) {
     console.error("Error sending message:", error);
     res.status(500).json({ message: "Internal server error" });

@@ -1,12 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { authenticate } from "../../../backend/middleware/authenticate";
-import clientPromise from "../../../backend/config/mongodb";
+import { getDb } from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { ImUser, Contact } from "../../../backend/types/types";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
   const userId = (req as any).user.userId;
 
   if (req.method === "POST") {
@@ -24,6 +23,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (!existingContact) {
         return res.status(404).json({ message: "Contact not found" });
       }
+
+      if (existingContact._id.toString() === userId) {
+        return res.status(400).json({ message: "Cannot add yourself" });
+      }
+
       const contactId = new ObjectId(existingContact._id);
 
       const existingContactInContacts = await db

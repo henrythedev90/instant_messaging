@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
-import clientPromise from "../../../backend/config/mongodb";
+import { getDb } from "../../../backend/config/mongodb";
 import { authenticate } from "../../../backend/middleware/authenticate";
 import { ObjectId } from "mongodb";
 import { DecodedToken } from "../../../backend/types/types";
@@ -23,8 +23,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB);
+    const db = await getDb();
 
     // Get the authenticated user (assuming `authenticate` middleware adds user info to req)
 

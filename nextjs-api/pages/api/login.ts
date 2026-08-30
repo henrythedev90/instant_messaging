@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../backend/config/mongodb";
+import { getDb } from "../../backend/config/mongodb";
 import { ImUser } from "../../backend/types/types";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -18,11 +18,10 @@ export default async function handler(
     return res.status(400).json({ message: "Missing required fields" });
   }
   try {
-    const client = await clientPromise;
-    const db = client.db("Cluster0");
+    const db = await getDb();
 
     const query: { email?: string; username?: string } = {};
-    if (email) query.email = email;
+    if (email) query.email = email.toLowerCase();
     if (username) query.username = username;
 
     const user = await db.collection("imUsers").findOne<ImUser>(query);

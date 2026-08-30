@@ -1,11 +1,10 @@
 import { authenticate } from "../../../../backend/middleware/authenticate";
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../../backend/config/mongodb";
+import { getDb } from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
 
   if (req.method !== "PUT") {
     return res.status(405).json({ message: "Method not allowed" });
@@ -13,7 +12,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const { groupId, newGroupName } = req.body;
-    const currentUser = (req as any).user.username;
+    const userId = (req as any).user.userId;
 
     if (!groupId || !newGroupName) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -27,7 +26,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ message: "Group chat not found" });
     }
 
-    if (currentUser !== groupChat.admin.username) {
+    if (groupChat.adminId.toString() !== userId) {
       return res
         .status(403)
         .json({ message: "You are not the admin of this group" });

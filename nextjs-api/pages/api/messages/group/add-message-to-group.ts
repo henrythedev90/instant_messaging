@@ -1,13 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { authenticate } from "../../../../backend/middleware/authenticate";
 import { GroupChatMessage, GroupMember } from "../../../../backend/types/types";
-import clientPromise from "../../../../backend/config/mongodb";
+import { getDb } from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
-import { getSocketServer } from "../../../../backend/config/socket";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
   const userId = (req as any).user.userId;
   const username = (req as any).user.username;
 
@@ -69,12 +67,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       }
     );
 
-    const io = getSocketServer();
-    if (io) {
-      io.to(groupId as string).emit("receiveGroupMessage", newMessage);
-    }
-
-    return res.status(200).json({ message: "Message added to group" });
+    return res.status(200).json({
+      message: "Message added to group",
+      newMessage,
+    });
   } catch (error) {
     console.error("Error adding message to group:", error);
     return res.status(500).json({ message: "Internal server error" });

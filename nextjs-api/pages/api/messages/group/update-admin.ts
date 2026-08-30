@@ -1,11 +1,10 @@
 import { authenticate } from "../../../../backend/middleware/authenticate";
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../../backend/config/mongodb";
+import { getDb } from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { GroupMember } from "../../../../backend/types/types";
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
   const userId = (req as any).user.userId;
 
   if (req.method !== "PUT") {
@@ -42,7 +41,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     if (
       !groupChat.members.some(
-        (member: GroupMember) => member.userId.toString() === userId
+        (member: GroupMember) =>
+          member.userId.toString() === isMember._id.toString()
       )
     ) {
       return res.status(400).json({

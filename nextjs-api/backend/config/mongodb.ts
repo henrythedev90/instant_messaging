@@ -28,4 +28,9 @@ if (process.env.NODE_ENV === "development") {
   clientPromise = client.connect();
 }
 
+export async function getDb() {
+  const client = await clientPromise;
+  return client.db(process.env.MONGODB_DB || "Cluster0");
+}
+
 export default clientPromise;

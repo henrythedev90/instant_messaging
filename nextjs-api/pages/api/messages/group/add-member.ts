@@ -1,12 +1,11 @@
 import { authenticate } from "../../../../backend/middleware/authenticate";
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../../backend/config/mongodb";
+import { getDb } from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { GroupChat, GroupMember } from "../../../../backend/types/types";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
 
   if (req.method !== "PUT") {
     return res.status(405).json({ message: "Method not allowed" });
@@ -61,7 +60,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           members: {
             userId: user._id,
             username: user.username,
-            joinedAt: new Date().toLocaleString(),
+            joinedAt: new Date(),
           },
         },
       }

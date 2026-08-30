@@ -146,11 +146,14 @@ export const initSocketServer = (server: any) => {
         }
 
         try {
-          const res = await axios.get("http://localhost:3000/api/contacts", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const res = await axios.get(
+            "http://localhost:3000/api/contacts/get-all-contact",
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
 
           const contacts = res.data.contacts;
 
@@ -268,7 +271,7 @@ export const initSocketServer = (server: any) => {
                   },
                 }
               );
-              const savedMessage = res.data;
+              const savedMessage = res.data.savedMessage || res.data;
 
               io.to(message.receiver.toString()).emit(
                 "receivePrivateMessage",

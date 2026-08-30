@@ -1,11 +1,10 @@
 import { authenticate } from "../../../../backend/middleware/authenticate";
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../../backend/config/mongodb";
+import { getDb } from "../../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db("Cluster0");
+  const db = await getDb();
   const userId = (req as any).user.userId;
   if (req.method !== "DELETE") {
     return res.status(405).json({ message: "Method not allowed" });
@@ -31,6 +30,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         .status(403)
         .json({ message: "You are not the admin of this group" });
     }
+
+    await db
+      .collection("groupChatsMessages")
+      .deleteMany({ groupId: new ObjectId(groupId as string) });
 
     const result = await db
       .collection("groupChats")

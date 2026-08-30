@@ -1,14 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import clientPromise from "../../../backend/config/mongodb";
+import { getDb } from "../../../backend/config/mongodb";
 import { ObjectId } from "mongodb";
 import { authorizeAndAuthenticate } from "../../../backend/middleware/authenticateOwnResource";
-// GET	/api/auth/:id	Retrieve a single user
-// PUT/PATCH	/api/auth/:id	Update user details
-// DELETE	/api/auth/:id	Delete a user
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const client = await clientPromise;
-  const db = client.db(process.env.MONGODB_DB);
+  const db = await getDb();
   const { id } = req.query;
 
   if (!ObjectId.isValid(id as string)) {
@@ -45,7 +41,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
   } else if (req.method === "DELETE") {
     try {
-      const result = await db.collection("users").deleteOne({ _id: userId });
+      const result = await db.collection("imUsers").deleteOne({ _id: userId });
       if (result.deletedCount === 0) {
         return res.status(404).json({ message: "User not found" });
       }
