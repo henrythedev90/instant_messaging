@@ -68,6 +68,95 @@ npm run dev:all
 - App: http://localhost:3000 (redirects to `/login`)
 - Socket: http://localhost:3001
 
+## How the WebSocket works
+
+The browser talks to two processes. REST on **:3000** owns auth and persistence. Socket.IO on **:3001** owns presence, rooms, and live delivery. A message is saved over HTTP first, then relayed on the socket so every tab for that user updates.
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI[Chat UI]
+    SP[SocketProvider]
+  end
+
+  subgraph Next["Next.js :3000"]
+    API["REST /api/*"]
+  end
+
+  subgraph Socket["Socket.IO :3001"]
+    IO[io server]
+    Rooms["Rooms<br/>direct: sorted userA:userB<br/>group: groupId"]
+    Map["userSockets map<br/>userId → all open tabs"]
+  end
+
+  DB[(MongoDB)]
+
+  UI -->|"login, send, history"| API
+  API --> DB
+  SP <-->|"JWT on connect"| IO
+  IO --> Rooms
+  IO --> Map
+  IO -.->|"save group message, load history"| API
+```
+
+On connect, `SocketProvider` opens `io(SOCKET_URL, { auth: { token } })`. The server verifies the JWT, records the socket under that user, and broadcasts who is online. Opening a chat joins a room; sending or typing is then fan-out from that room plus a direct emit to every socket for the other person (React Strict Mode and extra tabs mean one user can have more than one socket).
+
+```mermaid
+sequenceDiagram
+  participant A as User A
+  participant API as Next.js :3000
+  participant S as Socket.IO :3001
+  participant B as User B
+
+  A->>S: connect (JWT)
+  S-->>A: onlineUsers / userStatusChanged
+  B->>S: connect (JWT)
+  S-->>B: onlineUsers / userStatusChanged
+
+  A->>S: joinPrivateRoom(B)
+  S->>S: join room sorted(A,B)
+  S->>API: GET conversation
+  API-->>S: history
+  S-->>A: conversationHistory
+
+  A->>API: POST /api/messages/send
+  API-->>A: savedMessage
+  A->>S: relayPrivateMessage
+  S-->>B: receivePrivateMessage
+  S-->>A: receivePrivateMessage
+```
+
+If B does not have A as a contact, the same send still saves the message. The socket delivers `strangerMessageRequest` to B instead of opening their chat. Accept/deny goes back out as `messageRequestResolved`.
+
+Typing never hits Mongo. A emits `typing`; the server rewrites the key to `direct:<typerId>` (or keeps `group:<groupId>`) and sends `userTyping` to the other sockets. The UI looks that key up in the open thread and the contact list.
+
+```mermaid
+sequenceDiagram
+  participant A as User A
+  participant S as Socket.IO :3001
+  participant B as User B
+
+  A->>S: typing { roomId: A:B, isTyping: true }
+  S->>S: threadKey = direct:A
+  S-->>B: userTyping
+  Note over B: header, dots, contact row
+  A->>S: typing { isTyping: false }
+  S-->>B: userTyping (clear)
+```
+
+Groups follow the same pattern: create over REST, `announceGroup` / `groupCreated` to each member, `joinGroupRoom(groupId)`, then `relayGroupMessage` → `receiveGroupMessage`.
+
+| Client emit | Server does | Clients receive |
+| --- | --- | --- |
+| connect + JWT | map socket → user, mark online | `onlineUsers`, `userStatusChanged` |
+| `joinPrivateRoom` | join `sorted(A,B)`, load history | `conversationHistory` |
+| `relayPrivateMessage` | room + `emitToUser` | `receivePrivateMessage` or `strangerMessageRequest` |
+| `typing` | rewrite thread key, fan-out | `userTyping` |
+| `announceGroup` / `relayGroupMessage` | emit to each member | `groupCreated` / `receiveGroupMessage` |
+| disconnect | drop socket; offline after 5s if none left | `userStatusChanged` |
+
+`ts-node` does not hot-reload. Restart `npm run dev:socket` after changing `backend/config/socket.ts`.
+
 ## App workflow
 
 ### 1. Create an account or sign in
